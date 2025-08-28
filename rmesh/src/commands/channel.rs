@@ -2,7 +2,7 @@ use crate::cli::ChannelCommands;
 use crate::output::OutputFormat;
 use crate::utils::print_success;
 use anyhow::Result;
-use meshtastic_cli_core::ConnectionManager;
+use rmesh_core::ConnectionManager;
 
 pub async fn handle_channel(
     _connection: ConnectionManager,

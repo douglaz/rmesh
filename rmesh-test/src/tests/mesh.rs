@@ -25,7 +25,7 @@ pub fn get_tests() -> Vec<Test> {
 }
 
 async fn test_node_discovery(ctx: &mut TestContext<'_>) -> Result<Value> {
-    let nodes = meshtastic_cli_core::mesh::get_nodes(ctx.connection).await?;
+    let nodes = rmesh_core::mesh::get_nodes(ctx.connection).await?;
 
     Ok(json!({
         "nodes_discovered": nodes.len(),
@@ -38,7 +38,7 @@ async fn test_node_discovery(ctx: &mut TestContext<'_>) -> Result<Value> {
 }
 
 async fn test_neighbor_detection(ctx: &mut TestContext<'_>) -> Result<Value> {
-    let neighbors = meshtastic_cli_core::mesh::get_neighbors(ctx.connection).await?;
+    let neighbors = rmesh_core::mesh::get_neighbors(ctx.connection).await?;
 
     Ok(json!({
         "neighbor_count": neighbors.len(),
@@ -52,7 +52,7 @@ async fn test_neighbor_detection(ctx: &mut TestContext<'_>) -> Result<Value> {
 }
 
 async fn test_network_stats(ctx: &mut TestContext<'_>) -> Result<Value> {
-    let stats = meshtastic_cli_core::mesh::get_network_stats(ctx.connection).await?;
+    let stats = rmesh_core::mesh::get_network_stats(ctx.connection).await?;
 
     Ok(json!({
         "total_nodes": stats.total_nodes,

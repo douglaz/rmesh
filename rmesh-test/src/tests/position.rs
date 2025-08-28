@@ -28,7 +28,7 @@ async fn test_gps_status(ctx: &mut TestContext<'_>) -> Result<Value> {
 }
 
 async fn test_position_data(ctx: &mut TestContext<'_>) -> Result<Value> {
-    let position = meshtastic_cli_core::position::get_position(
+    let position = rmesh_core::position::get_position(
         ctx.connection,
         None, // Get our own position
     )

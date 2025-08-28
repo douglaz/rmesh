@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 
-# Meshtastic Hardware Test Runner
+# rmesh Test Runner
 # Safe execution wrapper that handles terminal issues
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-BINARY="$SCRIPT_DIR/target/debug/hardware-test"
+BINARY="$SCRIPT_DIR/target/debug/rmesh-test"
 
 # Check if binary exists
 if [ ! -f "$BINARY" ]; then
-    echo "Error: hardware-test binary not found."
-    echo "Please run: cargo build --bin hardware-test"
+    echo "Error: rmesh-test binary not found."
+    echo "Please run: cargo build --bin rmesh-test"
     exit 1
 fi
 
@@ -59,7 +59,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         -h|--help)
-            echo "Meshtastic Hardware Test Runner"
+            echo "rmesh Test Runner"
             echo ""
             echo "Usage: $0 [OPTIONS]"
             echo ""
@@ -103,13 +103,13 @@ if [ "$USE_NOHUP" = true ] || [ ! -t 0 ]; then
     if [ "$USE_NOHUP" = true ]; then
         # Set default log file if not specified
         if [ -z "$LOG_FILE" ]; then
-            LOG_FILE="hardware-test-$(date +%Y%m%d-%H%M%S).log"
+            LOG_FILE="rmesh-test-$(date +%Y%m%d-%H%M%S).log"
         fi
         
         echo "Starting hardware test in background..."
         echo "Output will be logged to: $LOG_FILE"
         echo "To monitor: tail -f $LOG_FILE"
-        echo "To stop: pkill -f hardware-test"
+        echo "To stop: pkill -f rmesh-test"
         echo ""
         
         # Run with nohup

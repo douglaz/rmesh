@@ -3,7 +3,7 @@ use crate::output::OutputFormat;
 use crate::utils::{print_error, print_success, print_warning};
 use anyhow::{bail, Result};
 use colored::*;
-use meshtastic_cli_core::{device, ConnectionManager};
+use rmesh_core::{device, ConnectionManager};
 
 pub async fn handle_admin(
     mut connection: ConnectionManager,

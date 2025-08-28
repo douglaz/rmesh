@@ -1,16 +1,16 @@
 [workspace]
-members = ["hardware-test",
-    "meshtastic-cli",
-    "meshtastic-cli-core",
+members = ["rmesh-test",
+    "rmesh",
+    "rmesh-core",
 ]
 resolver = "2"
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-authors = ["Meshtastic CLI Contributors"]
+authors = ["rmesh Contributors"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/yourusername/meshtastic-cli"
+repository = "https://github.com/yourusername/rmesh"
 
 [workspace.dependencies]
 # Core dependencies

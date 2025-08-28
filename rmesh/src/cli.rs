@@ -2,8 +2,8 @@ use clap::{Parser, Subcommand, ValueEnum};
 use std::time::Duration;
 
 #[derive(Parser, Debug)]
-#[command(name = "meshtastic-cli")]
-#[command(author, version, about, long_about = None)]
+#[command(name = "rmesh")]
+#[command(author, version, about = "rmesh - A Rust CLI for Meshtastic devices", long_about = None)]
 #[command(arg_required_else_help = true)]
 pub struct Cli {
     /// Serial port or TCP address (e.g., /dev/ttyUSB0 or 192.168.1.100:4403)

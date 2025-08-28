@@ -3,7 +3,7 @@ use crate::output::{print_output, OutputFormat};
 use crate::utils::{print_info, print_success};
 use anyhow::Result;
 use colored::*;
-use meshtastic_cli_core::ConnectionManager;
+use rmesh_core::ConnectionManager;
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
@@ -27,7 +27,7 @@ pub async fn handle_message(
             ack,
         } => {
             // Use the core library function
-            meshtastic_cli_core::message::send_text_message(
+            rmesh_core::message::send_text_message(
                 &mut connection,
                 &text,
                 dest,
@@ -66,7 +66,7 @@ pub async fn handle_message(
             let mut receiver = connection.take_packet_receiver()?;
 
             // Use the core library function
-            let messages = meshtastic_cli_core::message::receive_messages(
+            let messages = rmesh_core::message::receive_messages(
                 &mut receiver,
                 from,
                 if count == 0 { None } else { Some(count) },
@@ -103,7 +103,7 @@ pub async fn handle_message(
             let mut receiver = connection.take_packet_receiver()?;
 
             // Use the core library function
-            meshtastic_cli_core::message::monitor_messages(&mut receiver, from, |msg| {
+            rmesh_core::message::monitor_messages(&mut receiver, from, |msg| {
                 match format {
                     OutputFormat::Json => {
                         if let Ok(json) = serde_json::to_string(&msg) {

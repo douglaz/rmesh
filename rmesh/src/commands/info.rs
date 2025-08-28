@@ -4,7 +4,7 @@ use serde::Serialize;
 
 use crate::cli::{InfoCommands, TelemetryType};
 use crate::output::{create_table, print_output, OutputFormat};
-use meshtastic_cli_core::ConnectionManager;
+use rmesh_core::ConnectionManager;
 
 #[derive(Debug, Serialize)]
 struct RadioInfo {
@@ -66,7 +66,7 @@ pub async fn handle_info(
 
         InfoCommands::Nodes => {
             // Use the core library function
-            let nodes = meshtastic_cli_core::mesh::get_nodes(&connection).await?;
+            let nodes = rmesh_core::mesh::get_nodes(&connection).await?;
 
             if nodes.is_empty() {
                 println!("No nodes found in the mesh network");
@@ -110,7 +110,7 @@ pub async fn handle_info(
 
         InfoCommands::Channels => {
             // Use the core library function
-            let channels = meshtastic_cli_core::channel::list_channels(&connection).await?;
+            let channels = rmesh_core::channel::list_channels(&connection).await?;
 
             if channels.is_empty() {
                 println!("No channels configured");

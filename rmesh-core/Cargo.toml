@@ -1,11 +1,11 @@
 [package]
-name = "meshtastic-cli-core"
+name = "rmesh-core"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Core library for Meshtastic CLI operations"
+description = "Core library for rmesh - Rust Meshtastic CLI"
 keywords = ["meshtastic", "mesh", "lora", "radio", "library"]
 categories = ["network-programming", "encoding"]
 

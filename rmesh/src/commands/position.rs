@@ -4,7 +4,7 @@ use crate::utils::{print_info, print_success, print_warning};
 use anyhow::Result;
 use colored::*;
 use comfy_table::Cell;
-use meshtastic_cli_core::ConnectionManager;
+use rmesh_core::ConnectionManager;
 
 pub async fn handle_position(
     mut connection: ConnectionManager,
@@ -14,7 +14,7 @@ pub async fn handle_position(
     match subcommand {
         PositionCommands::Get { node } => {
             // Use the core library function
-            let position = meshtastic_cli_core::position::get_position(&connection, node).await?;
+            let position = rmesh_core::position::get_position(&connection, node).await?;
 
             if let Some(pos) = position {
                 match format {
@@ -51,7 +51,7 @@ pub async fn handle_position(
 
         PositionCommands::Set { lat, lon, alt } => {
             // Use the core library function
-            meshtastic_cli_core::position::set_position(&mut connection, lat, lon, alt).await?;
+            rmesh_core::position::set_position(&mut connection, lat, lon, alt).await?;
 
             print_success(&format!(
                 "Position set to: {:.6}, {:.6}{}",
@@ -69,7 +69,7 @@ pub async fn handle_position(
             let mut receiver = connection.take_packet_receiver()?;
 
             // Use the core library function
-            let positions = meshtastic_cli_core::position::track_positions(
+            let positions = rmesh_core::position::track_positions(
                 &mut receiver,
                 nodes,
                 60, // 60 second timeout

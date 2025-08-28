@@ -10,8 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added - Initial Release
 
 #### Core Features
-- Complete Rust implementation of Meshtastic CLI
-- Workspace structure with `meshtastic-cli-core` library and `meshtastic-cli` binary
+- Complete Rust implementation of rmesh
+- Workspace structure with `rmesh-core` library and `rmesh` binary
 - Static musl binary support for maximum portability
 - NixOS flake for reproducible builds
 
@@ -39,7 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Progress bars for long-running operations
 
 #### Testing & Tools
-- **hardware-test** binary for comprehensive device testing
+- **rmesh-test** binary for comprehensive device testing
 - Non-interactive mode for background/CI execution
 - Wrapper script for safe nohup execution
 - Unit tests for core library functionality

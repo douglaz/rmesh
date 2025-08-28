@@ -9,7 +9,7 @@ mod position;
 use crate::cli::{Cli, Commands};
 use crate::output::OutputFormat;
 use anyhow::Result;
-use meshtastic_cli_core::ConnectionManager;
+use rmesh_core::ConnectionManager;
 
 pub async fn handle_command(cli: Cli) -> Result<()> {
     // Determine output format

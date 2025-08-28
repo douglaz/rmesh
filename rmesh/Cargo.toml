@@ -1,21 +1,21 @@
 [package]
-name = "meshtastic-cli"
+name = "rmesh"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "A comprehensive command-line interface for Meshtastic devices"
+description = "rmesh - A Rust command-line interface for Meshtastic devices"
 keywords = ["meshtastic", "mesh", "lora", "cli", "radio"]
 categories = ["command-line-utilities", "network-programming"]
 
 [[bin]]
-name = "meshtastic-cli"
+name = "rmesh"
 path = "src/main.rs"
 
 [dependencies]
 # Core library
-meshtastic-cli-core = { path = "../meshtastic-cli-core" }
+rmesh-core = { path = "../rmesh-core" }
 
 # Async runtime
 tokio.workspace = true
@@ -40,4 +40,4 @@ chrono.workspace = true
 
 [features]
 default = []
-bluetooth = ["meshtastic-cli-core/bluetooth"]
+bluetooth = ["rmesh-core/bluetooth"]

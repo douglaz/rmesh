@@ -8,7 +8,7 @@ pub mod position;
 pub mod telemetry;
 
 use anyhow::Result;
-use meshtastic_cli_core::ConnectionManager;
+use rmesh_core::ConnectionManager;
 use serde_json::Value;
 use std::future::Future;
 use std::pin::Pin;

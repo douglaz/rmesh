@@ -20,7 +20,7 @@ pub fn get_tests() -> Vec<Test> {
 }
 
 async fn test_list_channels(ctx: &mut TestContext<'_>) -> Result<Value> {
-    let channels = meshtastic_cli_core::channel::list_channels(ctx.connection).await?;
+    let channels = rmesh_core::channel::list_channels(ctx.connection).await?;
 
     if channels.is_empty() {
         anyhow::bail!("No channels configured");
@@ -38,7 +38,7 @@ async fn test_list_channels(ctx: &mut TestContext<'_>) -> Result<Value> {
 }
 
 async fn test_primary_channel(ctx: &mut TestContext<'_>) -> Result<Value> {
-    let channels = meshtastic_cli_core::channel::list_channels(ctx.connection).await?;
+    let channels = rmesh_core::channel::list_channels(ctx.connection).await?;
 
     let primary = channels
         .iter()

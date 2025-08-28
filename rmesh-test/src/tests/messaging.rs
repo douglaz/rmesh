@@ -24,7 +24,7 @@ async fn test_send_message(ctx: &mut TestContext<'_>) -> Result<Value> {
     let start = Instant::now();
 
     // Send a test message
-    meshtastic_cli_core::message::send_text_message(
+    rmesh_core::message::send_text_message(
         ctx.connection,
         "Hardware test message",
         None,  // Broadcast
@@ -49,7 +49,7 @@ async fn test_message_queue(ctx: &mut TestContext<'_>) -> Result<Value> {
 
     // Send multiple messages
     for i in 0..3 {
-        meshtastic_cli_core::message::send_text_message(
+        rmesh_core::message::send_text_message(
             ctx.connection,
             &format!("Test message {}", i),
             None,

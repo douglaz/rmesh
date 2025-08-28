@@ -598,29 +598,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
 
 [[package]]
-name = "hardware-test"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "atty",
- "chrono",
- "clap",
- "colored",
- "comfy-table",
- "humantime",
- "indicatif",
- "meshtastic",
- "meshtastic-cli-core",
- "serde",
- "serde_json",
- "thiserror 2.0.16",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
 name = "hashbrown"
 version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -871,41 +848,6 @@ dependencies = [
  "tokio-serial",
  "tokio-util",
  "uuid",
-]
-
-[[package]]
-name = "meshtastic-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "clap",
- "colored",
- "comfy-table",
- "indicatif",
- "meshtastic-cli-core",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "meshtastic-cli-core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "hex",
- "log",
- "meshtastic",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "thiserror 2.0.16",
- "tokio",
- "tracing",
 ]
 
 [[package]]
@@ -1276,6 +1218,64 @@ name = "regex-syntax"
 version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "caf4aa5b0f434c91fe5c7f1ecb6a5ece2130b02ad2a590589dda5146df959001"
+
+[[package]]
+name = "rmesh"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "colored",
+ "comfy-table",
+ "indicatif",
+ "rmesh-core",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "rmesh-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "hex",
+ "log",
+ "meshtastic",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.16",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "rmesh-test"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "atty",
+ "chrono",
+ "clap",
+ "colored",
+ "comfy-table",
+ "humantime",
+ "indicatif",
+ "meshtastic",
+ "rmesh-core",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.16",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
 
 [[package]]
 name = "rustc-demangle"

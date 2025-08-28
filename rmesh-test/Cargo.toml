@@ -1,14 +1,18 @@
 [package]
-name = "hardware-test"
+name = "rmesh-test"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[[bin]]
+name = "rmesh-test"
+path = "src/main.rs"
+
 [dependencies]
 # Core library
-meshtastic-cli-core = { path = "../meshtastic-cli-core" }
+rmesh-core = { path = "../rmesh-core" }
 
 # Workspace dependencies
 meshtastic = { workspace = true }

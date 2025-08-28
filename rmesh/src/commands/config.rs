@@ -4,7 +4,7 @@ use crate::utils::{print_info, print_success};
 use anyhow::Result;
 use colored::*;
 use comfy_table::Cell;
-use meshtastic_cli_core::ConnectionManager;
+use rmesh_core::ConnectionManager;
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
@@ -22,7 +22,7 @@ pub async fn handle_config(
         ConfigCommands::Get { key } => {
             // Use the core library function
             let value =
-                meshtastic_cli_core::config::get_config_value(&mut connection, &key).await?;
+                rmesh_core::config::get_config_value(&mut connection, &key).await?;
 
             let config_value = ConfigValue {
                 key: key.clone(),
@@ -47,7 +47,7 @@ pub async fn handle_config(
 
         ConfigCommands::Set { key, value } => {
             // Use the core library function
-            meshtastic_cli_core::config::set_config_value(&mut connection, &key, &value).await?;
+            rmesh_core::config::set_config_value(&mut connection, &key, &value).await?;
 
             print_success(&format!("Configuration '{}' set to '{}'", key, value));
             println!(
@@ -58,7 +58,7 @@ pub async fn handle_config(
 
         ConfigCommands::List => {
             // Use the core library function
-            let config = meshtastic_cli_core::config::list_config(&connection).await?;
+            let config = rmesh_core::config::list_config(&connection).await?;
 
             match format {
                 OutputFormat::Json => print_output(&config, format),

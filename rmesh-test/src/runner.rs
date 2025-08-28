@@ -2,7 +2,7 @@ use anyhow::Result;
 use chrono::Utc;
 use colored::*;
 use indicatif::{ProgressBar, ProgressStyle};
-use meshtastic_cli_core::ConnectionManager;
+use rmesh_core::ConnectionManager;
 use std::time::{Duration, Instant};
 
 use crate::report::{TestReport, TestResult};

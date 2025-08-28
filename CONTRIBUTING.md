@@ -1,6 +1,6 @@
-# Contributing to Meshtastic CLI
+# Contributing to rmesh
 
-Thank you for your interest in contributing to Meshtastic CLI! This document provides guidelines and instructions for contributing to the project.
+Thank you for your interest in contributing to rmesh! This document provides guidelines and instructions for contributing to the project.
 
 ## Code of Conduct
 
@@ -20,8 +20,8 @@ Please be respectful and constructive in all interactions. We welcome contributo
 1. Fork the repository on GitHub
 2. Clone your fork:
 ```bash
-git clone https://github.com/yourusername/meshtastic-cli.git
-cd meshtastic-cli
+git clone https://github.com/yourusername/rmesh.git
+cd rmesh
 ```
 
 3. Enter the development environment:
@@ -137,22 +137,22 @@ mod tests {
 ## Project Structure
 
 ```
-meshtastic-cli/
-├── meshtastic-cli-core/    # Core library
+rmesh/
+├── rmesh-core/    # Core library
 │   ├── src/
 │   │   ├── lib.rs          # Public API
 │   │   ├── connection/     # Connection management
 │   │   ├── state.rs        # Device state
 │   │   └── ...            # Feature modules
 │   └── Cargo.toml
-├── meshtastic-cli/         # CLI binary
+├── rmesh/         # CLI binary
 │   ├── src/
 │   │   ├── main.rs         # Entry point
 │   │   ├── cli.rs          # CLI definitions
 │   │   ├── commands/       # Command implementations
 │   │   └── output/         # Output formatting
 │   └── Cargo.toml
-├── hardware-test/          # Hardware testing tool
+├── rmesh-test/          # Hardware testing tool
 └── Cargo.toml             # Workspace definition
 ```
 
@@ -160,9 +160,9 @@ meshtastic-cli/
 
 ### Adding a New Command
 
-1. Define the command in `meshtastic-cli/src/cli.rs`
-2. Implement the handler in `meshtastic-cli/src/commands/`
-3. Add core logic in `meshtastic-cli-core/src/`
+1. Define the command in `rmesh/src/cli.rs`
+2. Implement the handler in `rmesh/src/commands/`
+3. Add core logic in `rmesh-core/src/`
 4. Update documentation in README.md
 5. Add tests
 
@@ -184,14 +184,14 @@ cargo test
 ### Integration Tests with Device
 ```bash
 # Run hardware test suite
-cargo run --bin hardware-test -- --port /dev/ttyACM0
+cargo run --bin rmesh-test -- --port /dev/ttyACM0
 ```
 
 ### Manual Testing
 ```bash
 # Build and test locally
 cargo build
-./target/debug/meshtastic-cli --port /dev/ttyACM0 info radio
+./target/debug/rmesh --port /dev/ttyACM0 info radio
 ```
 
 ## Documentation
