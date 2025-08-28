@@ -95,7 +95,7 @@ impl TestRunner {
     }
 
     async fn run_category_tests(&mut self, category: TestCategory) -> Result<()> {
-        let category_name = format!("{:?}", category);
+        let category_name = format!("{category:?}");
 
         if self.verbose || self.non_interactive {
             eprintln!("\n{} Running {} tests...", "→".blue(), category_name.bold());
@@ -108,7 +108,7 @@ impl TestRunner {
 
             // Update progress bar only if in interactive mode
             if let Some(pb) = &self.progress {
-                pb.set_message(format!("{}: {}", category_name, test.name));
+                pb.set_message(format!("{category_name}: {name}", name = test.name));
             } else if self.non_interactive && self.verbose {
                 eprintln!("  {} Testing: {}", "→".cyan(), test.name);
             }
@@ -117,7 +117,7 @@ impl TestRunner {
             let (passed, details, error) = match (test.run_fn)(&mut context).await {
                 Ok(details) => (true, details, None),
                 Err(e) => {
-                    let error_msg = format!("{:?}", e);
+                    let error_msg = format!("{e:?}");
                     (
                         false,
                         serde_json::json!({"error": &error_msg}),

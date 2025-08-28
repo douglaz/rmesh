@@ -177,8 +177,8 @@ impl TestReport {
         for stat in &self.category_stats {
             if stat.failed > stat.passed {
                 self.recommendations.push(format!(
-                    "{} tests are failing. Focus on debugging this area.",
-                    stat.category
+                    "{category} tests are failing. Focus on debugging this area.",
+                    category = stat.category
                 ));
             }
         }

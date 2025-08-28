@@ -53,7 +53,7 @@ async fn test_firmware_version(ctx: &mut TestContext<'_>) -> Result<Value> {
         let major = my_info.min_app_version / 10000;
         let minor = (my_info.min_app_version % 10000) / 100;
         let patch = my_info.min_app_version % 100;
-        Some(format!("{}.{}.{}", major, minor, patch))
+        Some(format!("{major}.{minor}.{patch}"))
     } else {
         None
     };
@@ -141,7 +141,7 @@ async fn test_node_config(ctx: &mut TestContext<'_>) -> Result<Value> {
 
     Ok(json!({
         "node_id": my_info.node_id,
-        "node_num": format!("{:08x}", my_info.node_num),
+        "node_num": format!("{num:08x}", num = my_info.node_num),
         "device_id": my_info.device_id,
         "valid": true,
     }))

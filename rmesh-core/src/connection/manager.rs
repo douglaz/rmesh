@@ -319,7 +319,7 @@ async fn process_from_radio_packet(
                     .settings
                     .as_ref()
                     .map(|s| s.name.clone())
-                    .unwrap_or_else(|| format!("Channel {}", channel.index)),
+                    .unwrap_or_else(|| format!("Channel {index}", index = channel.index)),
                 role: format!("{:?}", channel.role()),
                 has_psk: channel
                     .settings

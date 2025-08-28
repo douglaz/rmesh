@@ -51,7 +51,7 @@ async fn test_message_queue(ctx: &mut TestContext<'_>) -> Result<Value> {
     for i in 0..3 {
         rmesh_core::message::send_text_message(
             ctx.connection,
-            &format!("Test message {}", i),
+            &format!("Test message {i}"),
             None,
             0,
             false,

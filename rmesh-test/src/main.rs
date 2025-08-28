@@ -240,7 +240,7 @@ async fn auto_detect_device() -> Result<String> {
         "/dev/tty.usbmodem",
     ] {
         for i in 0..10 {
-            let port = format!("{}{}", base, i);
+            let port = format!("{base}{i}");
             if std::path::Path::new(&port).exists() {
                 if let Ok(metadata) = std::fs::metadata(&port) {
                     use std::os::unix::fs::FileTypeExt;
