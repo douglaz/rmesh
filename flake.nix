@@ -37,6 +37,9 @@
           
           cargoLock = {
             lockFile = ./Cargo.lock;
+            outputHashes = {
+              "meshtastic-0.1.7" = "sha256-OPccMaD8A7IzQjgiOgrTUXKWESHEWkp9Zdo3+xetMM4=";
+            };
           };
           
           # Build only the CLI binary
@@ -116,6 +119,9 @@
           
           cargoLock = {
             lockFile = ./Cargo.lock;
+            outputHashes = {
+              "meshtastic-0.1.7" = "sha256-OPccMaD8A7IzQjgiOgrTUXKWESHEWkp9Zdo3+xetMM4=";
+            };
           };
           
           nativeBuildInputs = with pkgs; [
