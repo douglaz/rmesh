@@ -27,14 +27,8 @@ pub async fn handle_message(
             ack,
         } => {
             // Use the core library function
-            rmesh_core::message::send_text_message(
-                &mut connection,
-                &text,
-                dest,
-                channel,
-                ack,
-            )
-            .await?;
+            rmesh_core::message::send_text_message(&mut connection, &text, dest, channel, ack)
+                .await?;
 
             let sent_msg = SentMessage {
                 text: text.clone(),

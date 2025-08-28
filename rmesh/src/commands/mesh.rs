@@ -263,9 +263,7 @@ pub async fn handle_mesh(
                     println!("{}", table);
 
                     // Calculate and show network stats
-                    if let Ok(stats) =
-                        rmesh_core::mesh::get_network_stats(&connection).await
-                    {
+                    if let Ok(stats) = rmesh_core::mesh::get_network_stats(&connection).await {
                         println!("\n{}", "Network Statistics:".bold().cyan());
                         println!("  Total Nodes: {}", stats.total_nodes);
                         println!("  Active Nodes: {}", stats.active_nodes);

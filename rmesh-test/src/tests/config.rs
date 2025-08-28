@@ -21,8 +21,7 @@ pub fn get_tests() -> Vec<Test> {
 
 async fn test_read_config(ctx: &mut TestContext<'_>) -> Result<Value> {
     // Try to read a basic config value
-    let config_value =
-        rmesh_core::config::get_config_value(ctx.connection, "lora.region").await?;
+    let config_value = rmesh_core::config::get_config_value(ctx.connection, "lora.region").await?;
 
     Ok(json!({
         "config_readable": true,

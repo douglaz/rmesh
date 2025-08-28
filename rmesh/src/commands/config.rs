@@ -21,8 +21,7 @@ pub async fn handle_config(
     match subcommand {
         ConfigCommands::Get { key } => {
             // Use the core library function
-            let value =
-                rmesh_core::config::get_config_value(&mut connection, &key).await?;
+            let value = rmesh_core::config::get_config_value(&mut connection, &key).await?;
 
             let config_value = ConfigValue {
                 key: key.clone(),
