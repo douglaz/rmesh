@@ -30,6 +30,7 @@ result-*
 .env
 .env.local
 CLAUDE.md
+*.local.*
 
 # Debug files
 *.dSYM/
