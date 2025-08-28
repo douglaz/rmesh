@@ -29,23 +29,23 @@ jobs:
     - name: Build static musl binary
       run: |
         nix build
-        cp result/bin/meshtastic-cli meshtastic-cli-linux-x86_64
-        chmod +x meshtastic-cli-linux-x86_64
+        cp result/bin/rmesh rmesh-linux-x86_64
+        chmod +x rmesh-linux-x86_64
     
     - name: Verify static linking
       run: |
-        file meshtastic-cli-linux-x86_64 | grep "statically linked"
-        ldd meshtastic-cli-linux-x86_64 2>&1 | grep "not a dynamic executable" || true
+        file rmesh-linux-x86_64 | grep "statically linked"
+        ldd rmesh-linux-x86_64 2>&1 | grep "not a dynamic executable" || true
     
     - name: Create tarball
       run: |
-        tar czf meshtastic-cli-linux-x86_64.tar.gz meshtastic-cli-linux-x86_64 README.md
+        tar czf rmesh-linux-x86_64.tar.gz rmesh-linux-x86_64 README.md
     
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: meshtastic-cli-linux-x86_64
-        path: meshtastic-cli-linux-x86_64.tar.gz
+        name: rmesh-linux-x86_64
+        path: rmesh-linux-x86_64.tar.gz
 
   build-macos:
     name: Build macOS Binaries
@@ -69,19 +69,19 @@ jobs:
     
     - name: Build ${{ matrix.target }}
       run: |
-        cargo build --release --target ${{ matrix.target }} -p meshtastic-cli
-        cp target/${{ matrix.target }}/release/meshtastic-cli meshtastic-cli-${{ matrix.target }}
-        chmod +x meshtastic-cli-${{ matrix.target }}
+        cargo build --release --target ${{ matrix.target }} -p rmesh
+        cp target/${{ matrix.target }}/release/rmesh rmesh-${{ matrix.target }}
+        chmod +x rmesh-${{ matrix.target }}
     
     - name: Create tarball
       run: |
-        tar czf meshtastic-cli-${{ matrix.target }}.tar.gz meshtastic-cli-${{ matrix.target }} README.md
+        tar czf rmesh-${{ matrix.target }}.tar.gz rmesh-${{ matrix.target }} README.md
     
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: meshtastic-cli-${{ matrix.target }}
-        path: meshtastic-cli-${{ matrix.target }}.tar.gz
+        name: rmesh-${{ matrix.target }}
+        path: rmesh-${{ matrix.target }}.tar.gz
 
   build-windows:
     name: Build Windows Binary
@@ -99,18 +99,18 @@ jobs:
     
     - name: Build release binary
       run: |
-        cargo build --release --target x86_64-pc-windows-msvc -p meshtastic-cli
-        Copy-Item target\x86_64-pc-windows-msvc\release\meshtastic-cli.exe meshtastic-cli-windows-x86_64.exe
+        cargo build --release --target x86_64-pc-windows-msvc -p rmesh
+        Copy-Item target\x86_64-pc-windows-msvc\release\rmesh.exe rmesh-windows-x86_64.exe
     
     - name: Create zip archive
       run: |
-        Compress-Archive -Path meshtastic-cli-windows-x86_64.exe, README.md -DestinationPath meshtastic-cli-windows-x86_64.zip
+        Compress-Archive -Path rmesh-windows-x86_64.exe, README.md -DestinationPath rmesh-windows-x86_64.zip
     
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: meshtastic-cli-windows-x86_64
-        path: meshtastic-cli-windows-x86_64.zip
+        name: rmesh-windows-x86_64
+        path: rmesh-windows-x86_64.zip
 
   release:
     needs: [build-linux, build-macos, build-windows]
@@ -132,10 +132,10 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         files: |
-          artifacts/meshtastic-cli-linux-x86_64/*.tar.gz
-          artifacts/meshtastic-cli-x86_64-apple-darwin/*.tar.gz
-          artifacts/meshtastic-cli-aarch64-apple-darwin/*.tar.gz
-          artifacts/meshtastic-cli-windows-x86_64/*.zip
+          artifacts/rmesh-linux-x86_64/*.tar.gz
+          artifacts/rmesh-x86_64-apple-darwin/*.tar.gz
+          artifacts/rmesh-aarch64-apple-darwin/*.tar.gz
+          artifacts/rmesh-windows-x86_64/*.zip
         draft: false
         prerelease: false
         generate_release_notes: true

@@ -55,7 +55,7 @@ jobs:
     
     - name: Check binary is static
       run: |
-        file result/bin/meshtastic-cli | grep "statically linked"
+        file result/bin/rmesh | grep "statically linked"
 
   test-features:
     runs-on: ubuntu-latest
@@ -85,11 +85,11 @@ jobs:
     
     - name: Test core library separately
       run: |
-        nix develop -c cargo test -p meshtastic-cli-core
+        nix develop -c cargo test -p rmesh-core
     
     - name: Test CLI separately
       run: |
-        nix develop -c cargo test -p meshtastic-cli
+        nix develop -c cargo test -p rmesh
     
     - name: Build release version
       run: |
