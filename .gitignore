@@ -1,0 +1,54 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+*.pdb
+
+# Cargo lock files - keeping for binary crates
+# Uncomment for library crates:
+# Cargo.lock
+
+# IDE and editor files
+.idea/
+*.swp
+*.swo
+*~
+.vscode/
+*.iml
+.DS_Store
+
+# Test and log files
+*.log
+test-run.log
+hardware-test-*.log
+clippy-output.txt
+
+# Nix result symlinks
+result
+result-*
+
+# Local development files
+.env
+.env.local
+CLAUDE.md
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# OS specific
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/

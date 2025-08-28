@@ -1,0 +1,31 @@
+[package]
+name = "hardware-test"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# Core library
+meshtastic-cli-core = { path = "../meshtastic-cli-core" }
+
+# Workspace dependencies
+meshtastic = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+clap = { workspace = true }
+colored = { workspace = true }
+indicatif = { workspace = true }
+comfy-table = { workspace = true }
+humantime = { workspace = true }
+chrono = { workspace = true }
+
+# Additional dependencies for testing
+uuid = { version = "1.11", features = ["v4"] }
+atty = "0.2"
