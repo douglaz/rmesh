@@ -14,7 +14,7 @@ repository = "https://github.com/yourusername/rmesh"
 
 [workspace.dependencies]
 # Core dependencies
-meshtastic = { path = "../meshtastic-rust", features = ["serde"] }
+meshtastic = { git = "https://github.com/meshtastic/rust.git", branch = "main", features = ["serde"] }
 tokio = { version = "1.43", features = ["full"] }
 anyhow = "1.0"
 thiserror = "2.0"
