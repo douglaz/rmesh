@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 use std::time::Duration;
 
 #[derive(Parser, Debug)]
-#[command(name = "meshtastic-cli")]
+#[command(name = "rmesh")]
 #[command(author, version, about, long_about = None)]
 #[command(arg_required_else_help = true)]
 pub struct Cli {

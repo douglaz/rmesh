@@ -1,5 +1,5 @@
 {
-  description = "Meshtastic CLI - A comprehensive command-line interface for Meshtastic devices";
+  description = "rmesh - A comprehensive command-line interface for Meshtastic devices";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -31,7 +31,7 @@
             rustc = rustToolchain;
           };
         in rustPlatformMusl.buildRustPackage {
-          pname = "meshtastic-cli";
+          pname = "rmesh";
           version = "0.1.0";
           src = ./.;
           
@@ -40,7 +40,7 @@
           };
           
           # Build only the CLI binary
-          buildAndTestSubdir = "meshtastic-cli";
+          buildAndTestSubdir = "rmesh";
           
           nativeBuildInputs = with pkgs; [
             pkg-config
@@ -85,7 +85,7 @@
             runHook preInstall
             
             mkdir -p $out/bin
-            cp target/x86_64-unknown-linux-musl/release/meshtastic-cli $out/bin/
+            cp target/x86_64-unknown-linux-musl/release/rmesh $out/bin/
             
             runHook postInstall
           '';
@@ -95,22 +95,22 @@
           # Verify the binary is statically linked
           postInstall = ''
             echo "Checking if binary is statically linked..."
-            file $out/bin/meshtastic-cli
+            file $out/bin/rmesh
             # Strip the binary to reduce size
-            ${pkgs.binutils}/bin/strip $out/bin/meshtastic-cli
+            ${pkgs.binutils}/bin/strip $out/bin/rmesh
           '';
           
           meta = with pkgs.lib; {
             description = "A comprehensive command-line interface for Meshtastic devices";
-            homepage = "https://github.com/yourusername/meshtastic-cli";
+            homepage = "https://github.com/douglaz/rmesh";
             license = with licenses; [ mit asl20 ];
             maintainers = [ ];
           };
         };
         
         # Alternative dynamic build (non-static)
-        packages.meshtastic-cli-dynamic = pkgs.rustPlatform.buildRustPackage {
-          pname = "meshtastic-cli-dynamic";
+        packages.rmesh-dynamic = pkgs.rustPlatform.buildRustPackage {
+          pname = "rmesh-dynamic";
           version = "0.1.0";
           src = ./.;
           
@@ -130,8 +130,8 @@
           ];
           
           meta = with pkgs.lib; {
-            description = "Meshtastic CLI (dynamic build)";
-            homepage = "https://github.com/yourusername/meshtastic-cli";
+            description = "rmesh (dynamic build)";
+            homepage = "https://github.com/douglaz/rmesh";
             license = with licenses; [ mit asl20 ];
             maintainers = [ ];
           };

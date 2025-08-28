@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-echo "🔨 Building Meshtastic CLI..."
+echo "🔨 Building rmesh..."
 
 # Build in debug mode first (faster)
 echo "Building debug version..."
@@ -9,7 +9,7 @@ cargo build
 
 # Test if the binary exists and can show help
 echo "Testing binary..."
-./target/debug/meshtastic-cli --help
+./target/debug/rmesh --help
 
 echo "✅ Build successful!"
 echo ""

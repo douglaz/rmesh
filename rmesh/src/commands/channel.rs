@@ -12,7 +12,7 @@ pub async fn handle_channel(
     match subcommand {
         ChannelCommands::List => {
             // Handled in info::handle_info with InfoCommands::Channels
-            print_success("Use 'meshtastic-cli info channels' to list channels");
+            print_success("Use 'rmesh info channels' to list channels");
         }
 
         ChannelCommands::Add { name, psk } => {
