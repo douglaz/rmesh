@@ -29,16 +29,19 @@ impl<'a> TestContext<'a> {
     }
 }
 
+/// Type alias for test function
+pub type TestFn = Box<
+    dyn for<'a> Fn(&'a mut TestContext<'_>) -> Pin<Box<dyn Future<Output = Result<Value>> + 'a>>
+        + Send
+        + Sync,
+>;
+
 /// A single test definition
 pub struct Test {
     pub name: &'static str,
     #[allow(dead_code)]
     pub description: &'static str,
-    pub run_fn: Box<
-        dyn for<'a> Fn(&'a mut TestContext<'_>) -> Pin<Box<dyn Future<Output = Result<Value>> + 'a>>
-            + Send
-            + Sync,
-    >,
+    pub run_fn: TestFn,
 }
 
 /// Test categories

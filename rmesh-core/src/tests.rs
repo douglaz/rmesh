@@ -1,6 +1,5 @@
 #[cfg(test)]
-mod tests {
-    use super::*;
+mod state_tests {
     use crate::state::{DeviceConfig, DeviceMetrics, PositionConfig, TelemetryData};
     use crate::state::{DeviceState, MyNodeInfo, NodeInfo, Position, TextMessage, User};
 
@@ -183,7 +182,6 @@ mod tests {
 
 #[cfg(test)]
 mod mesh_tests {
-    use super::*;
     use crate::mesh::{MeshNode, NetworkStats, RouteHop};
 
     #[test]
