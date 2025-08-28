@@ -76,8 +76,11 @@ impl ConnectionManager {
         let (packet_receiver, connected_api) = if let Some(_ble_addr) = &self.ble {
             #[cfg(feature = "bluetooth")]
             {
-                info!("Connecting via Bluetooth to {}", _ble_addr);
-                let stream = utils::stream::build_ble_stream(_ble_addr.clone())
+                info!("Connecting via Bluetooth to {addr}", addr = _ble_addr);
+                // Parse BLE address string into BleId - try as MAC address first, then as name
+                let ble_id = utils::stream::BleId::from_mac_address(_ble_addr)
+                    .unwrap_or_else(|_| utils::stream::BleId::from_name(_ble_addr));
+                let stream = utils::stream::build_ble_stream(&ble_id, Duration::from_secs(10))
                     .await
                     .context("Failed to connect via Bluetooth")?;
                 stream_api.connect(stream).await

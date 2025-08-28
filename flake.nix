@@ -157,6 +157,8 @@
             cargo-watch
             rust-analyzer
             gh
+            dbus
+            dbus.dev
           ] ++ lib.optionals stdenv.isLinux [
             udev
           ];
@@ -170,7 +172,7 @@
           OPENSSL_STATIC = "1";
           OPENSSL_LIB_DIR = "${pkgs.pkgsStatic.openssl.out}/lib";
           OPENSSL_INCLUDE_DIR = "${pkgs.pkgsStatic.openssl.dev}/include";
-          PKG_CONFIG_PATH = "${pkgs.pkgsStatic.openssl.dev}/lib/pkgconfig";
+          PKG_CONFIG_PATH = "${pkgs.pkgsStatic.openssl.dev}/lib/pkgconfig:${pkgs.dbus.dev}/lib/pkgconfig";
           
           shellHook = ''
             echo "🔧 Meshtastic CLI Development Environment"
