@@ -1,7 +1,15 @@
 # rmesh
 
-A Rust CLI for Meshtastic devices.
+A comprehensive, high-performance command-line interface for Meshtastic devices written in Rust.
 
-## Status
+## Features
 
-Initial development in progress. See the [initial-release PR](https://github.com/douglaz/rmesh/pull/1) for the first version.
+- 🚀 **Fast** - Native Rust implementation for superior performance
+- 📦 **Portable** - Static musl binaries that work everywhere
+- 🔌 **Multiple Connections** - Serial, TCP/IP, and Bluetooth LE support
+- 📊 **Flexible Output** - JSON for scripting, formatted tables for humans
+- 🛠️ **Full-Featured** - Complete command set matching the Python CLI
+- 🔒 **Secure** - Memory-safe Rust implementation
+- 🎨 **Modern UX** - Colored output, progress bars, clear error messages
+
+See full documentation and usage examples in the README after merge.
