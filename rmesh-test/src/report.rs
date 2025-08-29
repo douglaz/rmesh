@@ -188,54 +188,62 @@ impl TestReport {
         use colored::*;
 
         println!(
-            "\n{}",
-            "═══════════════════════════════════════════════════════".bold()
+            "\n{separator}",
+            separator = "═══════════════════════════════════════════════════════".bold()
         );
         println!(
-            "{}",
-            "                   TEST REPORT SUMMARY                  "
+            "{title}",
+            title = "                   TEST REPORT SUMMARY                  "
                 .bold()
                 .cyan()
         );
         println!(
-            "{}",
-            "═══════════════════════════════════════════════════════".bold()
+            "{separator}",
+            separator = "═══════════════════════════════════════════════════════".bold()
         );
 
-        println!("\n{}", "Device Information:".bold());
-        println!("  Port: {}", self.device_info.port);
+        println!("\n{section}", section = "Device Information:".bold());
+        println!("  Port: {port}", port = self.device_info.port);
         if let Some(fw) = &self.device_info.firmware_version {
-            println!("  Firmware: {}", fw);
+            println!("  Firmware: {fw}");
         }
         if let Some(hw) = &self.device_info.hardware_model {
-            println!("  Hardware: {}", hw);
+            println!("  Hardware: {hw}");
         }
 
-        println!("\n{}", "Test Results:".bold());
-        println!("  Total Tests: {}", self.tests_run);
+        println!("\n{section}", section = "Test Results:".bold());
+        println!("  Total Tests: {total}", total = self.tests_run);
         println!(
-            "  Passed: {} {}",
-            self.tests_passed,
-            format!("({}%)", self.tests_passed * 100 / self.tests_run.max(1)).green()
+            "  Passed: {passed} {percentage}",
+            passed = self.tests_passed,
+            percentage = format!(
+                "({percent}%)",
+                percent = self.tests_passed * 100 / self.tests_run.max(1)
+            )
+            .green()
         );
         println!(
-            "  Failed: {} {}",
-            self.tests_failed,
-            if self.tests_failed > 0 {
-                format!("({}%)", self.tests_failed * 100 / self.tests_run.max(1)).red()
+            "  Failed: {failed} {percentage}",
+            failed = self.tests_failed,
+            percentage = if self.tests_failed > 0 {
+                format!(
+                    "({percent}%)",
+                    percent = self.tests_failed * 100 / self.tests_run.max(1)
+                )
+                .red()
             } else {
                 "".normal()
             }
         );
 
-        println!("\n{}", "Connection Quality:".bold());
+        println!("\n{section}", section = "Connection Quality:".bold());
         println!(
             "  Packet Success Rate: {:.1}%",
             (1.0 - self.connection_quality.error_rate) * 100.0
         );
         println!(
-            "  Connection Stability: {}",
-            match self.connection_quality.connection_stability.as_str() {
+            "  Connection Stability: {stability}",
+            stability = match self.connection_quality.connection_stability.as_str() {
                 "Excellent" => self.connection_quality.connection_stability.green(),
                 "Good" => self.connection_quality.connection_stability.green(),
                 "Fair" => self.connection_quality.connection_stability.yellow(),
@@ -245,9 +253,9 @@ impl TestReport {
         );
 
         if !self.recommendations.is_empty() {
-            println!("\n{}", "Recommendations:".bold().yellow());
+            println!("\n{section}", section = "Recommendations:".bold().yellow());
             for rec in &self.recommendations {
-                println!("  • {}", rec);
+                println!("  • {rec}");
             }
         }
 

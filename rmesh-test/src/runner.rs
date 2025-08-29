@@ -19,7 +19,11 @@ pub struct TestRunner {
 
 impl TestRunner {
     pub async fn new(port: String, verbose: bool, non_interactive: bool) -> Result<Self> {
-        eprintln!("{} Connecting to device on {}...", "→".cyan(), port.bold());
+        eprintln!(
+            "{arrow} Connecting to device on {port}...",
+            arrow = "→".cyan(),
+            port = port.bold()
+        );
 
         let mut connection = ConnectionManager::new(
             Some(port.clone()),
@@ -30,7 +34,7 @@ impl TestRunner {
 
         connection.connect().await?;
 
-        eprintln!("{} Connected successfully!", "✓".green());
+        eprintln!("{check} Connected successfully!", check = "✓".green());
 
         Ok(Self {
             connection,
@@ -54,7 +58,10 @@ impl TestRunner {
     pub async fn run_all_tests(&mut self) -> Result<TestReport> {
         let start_time = Instant::now();
 
-        eprintln!("\n{}", "Starting hardware tests...".bold().cyan());
+        eprintln!(
+            "\n{message}",
+            message = "Starting hardware tests...".bold().cyan()
+        );
 
         // Setup progress bar only if in interactive mode
         if !self.non_interactive {
@@ -71,10 +78,10 @@ impl TestRunner {
         } else if self.verbose {
             let total_tests = self.estimate_total_tests();
             eprintln!(
-                "{} Running {} tests across {} categories",
-                "→".blue(),
-                total_tests,
-                self.categories.len()
+                "{arrow} Running {total} tests across {categories} categories",
+                arrow = "→".blue(),
+                total = total_tests,
+                categories = self.categories.len()
             );
         }
 
@@ -98,7 +105,11 @@ impl TestRunner {
         let category_name = format!("{category:?}");
 
         if self.verbose || self.non_interactive {
-            eprintln!("\n{} Running {} tests...", "→".blue(), category_name.bold());
+            eprintln!(
+                "\n{arrow} Running {category} tests...",
+                arrow = "→".blue(),
+                category = category_name.bold()
+            );
         }
 
         let tests = category.get_tests();
@@ -110,7 +121,11 @@ impl TestRunner {
             if let Some(pb) = &self.progress {
                 pb.set_message(format!("{category_name}: {name}", name = test.name));
             } else if self.non_interactive && self.verbose {
-                eprintln!("  {} Testing: {}", "→".cyan(), test.name);
+                eprintln!(
+                    "  {arrow} Testing: {name}",
+                    arrow = "→".cyan(),
+                    name = test.name
+                );
             }
 
             let mut context = TestContext::new(&mut self.connection, self.verbose);
@@ -139,18 +154,23 @@ impl TestRunner {
             // Always show results in non-interactive mode or when verbose
             if self.verbose || self.non_interactive {
                 if result.passed {
-                    eprintln!("  {} {} ({}ms)", "✓".green(), test.name, result.duration_ms);
+                    eprintln!(
+                        "  {check} {name} ({duration}ms)",
+                        check = "✓".green(),
+                        name = test.name,
+                        duration = result.duration_ms
+                    );
                 } else {
                     eprintln!(
-                        "  {} {} - {} ({}ms)",
-                        "✗".red(),
-                        test.name,
-                        result
+                        "  {cross} {name} - {error} ({duration}ms)",
+                        cross = "✗".red(),
+                        name = test.name,
+                        error = result
                             .error
                             .as_ref()
                             .unwrap_or(&"Unknown error".to_string())
                             .red(),
-                        result.duration_ms
+                        duration = result.duration_ms
                     );
                 }
             }

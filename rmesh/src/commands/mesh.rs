@@ -207,10 +207,11 @@ pub async fn handle_mesh(
                 OutputFormat::Json => print_output(&neighbors, format),
                 OutputFormat::Table => {
                     println!(
-                        "\n{}",
-                        format!("Direct Neighbors ({} found):", neighbors.len())
-                            .bold()
-                            .green()
+                        "\n{title}",
+                        title =
+                            format!("Direct Neighbors ({count} found):", count = neighbors.len())
+                                .bold()
+                                .green()
                     );
 
                     let mut table = create_table();
@@ -248,11 +249,11 @@ pub async fn handle_mesh(
                                             .as_secs();
                                         let ago = now.saturating_sub(h);
                                         if ago < 60 {
-                                            format!("{}s ago", ago)
+                                            format!("{ago}s ago")
                                         } else if ago < 3600 {
-                                            format!("{}m ago", ago / 60)
+                                            format!("{minutes}m ago", minutes = ago / 60)
                                         } else {
-                                            format!("{}h ago", ago / 3600)
+                                            format!("{hours}h ago", hours = ago / 3600)
                                         }
                                     })
                                     .unwrap_or_else(|| "Never".to_string()),

@@ -54,7 +54,10 @@ async fn test_connection_stability(ctx: &mut TestContext<'_>) -> Result<Value> {
     };
 
     if success_rate < 80.0 {
-        anyhow::bail!("Connection unstable: {:.1}% success rate", success_rate);
+        anyhow::bail!(
+            "Connection unstable: {rate:.1}% success rate",
+            rate = success_rate
+        );
     }
 
     Ok(json!({
@@ -100,7 +103,10 @@ async fn test_response_time(ctx: &mut TestContext<'_>) -> Result<Value> {
     let max_response_time = *response_times.iter().max().unwrap_or(&0);
 
     if avg_response_time > 1000 {
-        anyhow::bail!("Response time too high: {}ms average", avg_response_time);
+        anyhow::bail!(
+            "Response time too high: {time}ms average",
+            time = avg_response_time
+        );
     }
 
     Ok(json!({

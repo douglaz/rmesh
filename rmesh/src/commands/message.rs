@@ -111,13 +111,18 @@ pub async fn handle_message(
                         }
                     }
                     OutputFormat::Table => {
-                        println!("{} [{}]: {}", msg.from.blue().bold(), msg.channel, msg.text);
+                        println!(
+                            "{from} [{channel}]: {text}",
+                            from = msg.from.blue().bold(),
+                            channel = msg.channel,
+                            text = msg.text
+                        );
                         if let (Some(snr), Some(rssi)) = (msg.snr, msg.rssi) {
                             println!(
-                                "  {} SNR: {:.1} dB, RSSI: {} dBm",
-                                "Signal:".dimmed(),
-                                snr,
-                                rssi
+                                "  {label} SNR: {snr:.1} dB, RSSI: {rssi} dBm",
+                                label = "Signal:".dimmed(),
+                                snr = snr,
+                                rssi = rssi
                             );
                         }
                     }

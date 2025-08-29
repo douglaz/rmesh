@@ -65,8 +65,8 @@ async fn test_firmware_version(ctx: &mut TestContext<'_>) -> Result<Value> {
         && major < 2
     {
         anyhow::bail!(
-            "Firmware version {} is too old. Please update to 2.x or higher",
-            firmware
+            "Firmware version {version} is too old. Please update to 2.x or higher",
+            version = firmware
         );
     }
 
@@ -131,7 +131,7 @@ async fn test_node_config(ctx: &mut TestContext<'_>) -> Result<Value> {
 
     // Check if node ID is valid hex
     if my_info.node_id.len() != 8 || !my_info.node_id.chars().all(|c| c.is_ascii_hexdigit()) {
-        anyhow::bail!("Invalid node ID format: {}", my_info.node_id);
+        anyhow::bail!("Invalid node ID format: {id}", id = my_info.node_id);
     }
 
     Ok(json!({

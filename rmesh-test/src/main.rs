@@ -84,18 +84,18 @@ async fn main() -> Result<()> {
 
     // Print header
     println!(
-        "{}",
-        "╔════════════════════════════════════════════════════════╗".bold()
+        "{separator}",
+        separator = "╔════════════════════════════════════════════════════════╗".bold()
     );
     println!(
-        "{}",
-        "║          Meshtastic Hardware Test Suite v0.1.0        ║"
+        "{title}",
+        title = "║          Meshtastic Hardware Test Suite v0.1.0        ║"
             .bold()
             .cyan()
     );
     println!(
-        "{}",
-        "╚════════════════════════════════════════════════════════╝".bold()
+        "{separator}",
+        separator = "╚════════════════════════════════════════════════════════╝".bold()
     );
     println!();
 
@@ -117,7 +117,11 @@ async fn main() -> Result<()> {
         let mut found_port = String::new();
         for port in common_ports {
             if std::path::Path::new(port).exists() {
-                eprintln!("{} Found device at {}", "→".green(), port.bold());
+                eprintln!(
+                    "{arrow} Found device at {port}",
+                    arrow = "→".green(),
+                    port = port.bold()
+                );
                 found_port = port.to_string();
                 break;
             }
@@ -149,7 +153,7 @@ async fn main() -> Result<()> {
             if let Some(output_path) = args.output {
                 std::fs::write(output_path, json)?;
             } else {
-                println!("{}", json);
+                println!("{json}");
             }
         }
         OutputFormat::Markdown => {
@@ -157,7 +161,7 @@ async fn main() -> Result<()> {
             if let Some(output_path) = args.output {
                 std::fs::write(output_path, markdown)?;
             } else {
-                println!("{}", markdown);
+                println!("{markdown}");
             }
         }
     }
@@ -171,7 +175,10 @@ async fn main() -> Result<()> {
 }
 
 async fn auto_detect_device() -> Result<String> {
-    eprintln!("{} Auto-detecting Meshtastic device...", "→".cyan());
+    eprintln!(
+        "{arrow} Auto-detecting Meshtastic device...",
+        arrow = "→".cyan()
+    );
 
     // Check common serial port locations used by Meshtastic devices
     // First check /dev/serial/by-id for most reliable identification
@@ -195,10 +202,10 @@ async fn auto_detect_device() -> Result<String> {
                     // CH9102 USB-Serial
                     if let Ok(path) = entry.path().canonicalize() {
                         eprintln!(
-                            "{} Found device: {} -> {}",
-                            "✓".green(),
-                            name.bold(),
-                            path.display()
+                            "{check} Found device: {name} -> {path}",
+                            check = "✓".green(),
+                            name = name.bold(),
+                            path = path.display()
                         );
                         return Ok(path.to_string_lossy().to_string());
                     }
@@ -225,7 +232,11 @@ async fn auto_detect_device() -> Result<String> {
             if let Ok(metadata) = std::fs::metadata(port) {
                 use std::os::unix::fs::FileTypeExt;
                 if metadata.file_type().is_char_device() {
-                    eprintln!("{} Found device at {}", "✓".green(), port.bold());
+                    eprintln!(
+                        "{check} Found device at {port}",
+                        check = "✓".green(),
+                        port = port.bold()
+                    );
                     return Ok(port.to_string());
                 }
             }
@@ -246,7 +257,11 @@ async fn auto_detect_device() -> Result<String> {
             {
                 use std::os::unix::fs::FileTypeExt;
                 if metadata.file_type().is_char_device() {
-                    eprintln!("{} Found device at {}", "✓".green(), port.bold());
+                    eprintln!(
+                        "{check} Found device at {port}",
+                        check = "✓".green(),
+                        port = port.bold()
+                    );
                     return Ok(port);
                 }
             }
@@ -260,21 +275,30 @@ fn generate_markdown_report(report: &report::TestReport) -> String {
     let mut md = String::new();
 
     md.push_str("# Meshtastic Hardware Test Report\n\n");
-    md.push_str(&format!("**Test ID:** {}\n", report.test_id));
-    md.push_str(&format!("**Date:** {}\n", report.timestamp));
-    md.push_str(&format!("**Device:** {}\n\n", report.device_info.port));
-
-    md.push_str("## Summary\n\n");
-    md.push_str(&format!("- **Total Tests:** {}\n", report.tests_run));
+    md.push_str(&format!("**Test ID:** {id}\n", id = report.test_id));
     md.push_str(&format!(
-        "- **Passed:** {} ({:.1}%)\n",
-        report.tests_passed,
-        report.tests_passed as f64 / report.tests_run as f64 * 100.0
+        "**Date:** {timestamp}\n",
+        timestamp = report.timestamp
     ));
     md.push_str(&format!(
-        "- **Failed:** {} ({:.1}%)\n",
-        report.tests_failed,
-        report.tests_failed as f64 / report.tests_run as f64 * 100.0
+        "**Device:** {port}\n\n",
+        port = report.device_info.port
+    ));
+
+    md.push_str("## Summary\n\n");
+    md.push_str(&format!(
+        "- **Total Tests:** {total}\n",
+        total = report.tests_run
+    ));
+    md.push_str(&format!(
+        "- **Passed:** {passed} ({percentage:.1}%)\n",
+        passed = report.tests_passed,
+        percentage = report.tests_passed as f64 / report.tests_run as f64 * 100.0
+    ));
+    md.push_str(&format!(
+        "- **Failed:** {failed} ({percentage:.1}%)\n",
+        failed = report.tests_failed,
+        percentage = report.tests_failed as f64 / report.tests_run as f64 * 100.0
     ));
     md.push('\n');
 
@@ -295,14 +319,18 @@ fn generate_markdown_report(report: &report::TestReport) -> String {
         };
 
         md.push_str(&format!(
-            "| {} | {} | {} | {}ms | {} |\n",
-            result.category, result.name, status, result.duration_ms, details
+            "| {category} | {name} | {status} | {duration}ms | {details} |\n",
+            category = result.category,
+            name = result.name,
+            status = status,
+            duration = result.duration_ms,
+            details = details
         ));
     }
 
     md.push_str("\n## Recommendations\n\n");
     for rec in &report.recommendations {
-        md.push_str(&format!("- {}\n", rec));
+        md.push_str(&format!("- {rec}\n"));
     }
 
     md
