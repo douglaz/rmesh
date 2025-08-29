@@ -127,9 +127,10 @@ async fn main() -> Result<()> {
             }
         }
 
-        if found_port.is_empty() {
-            anyhow::bail!("No device found. Please specify --port or use --auto-detect");
-        }
+        anyhow::ensure!(
+            !found_port.is_empty(),
+            "No device found. Please specify --port or use --auto-detect"
+        );
         found_port
     };
 

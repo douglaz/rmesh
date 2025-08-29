@@ -125,14 +125,14 @@ async fn test_node_config(ctx: &mut TestContext<'_>) -> Result<Value> {
         .context("No node configuration available")?;
 
     // Validate node ID format
-    if my_info.node_id.is_empty() {
-        anyhow::bail!("Node ID is empty");
-    }
+    anyhow::ensure!(!my_info.node_id.is_empty(), "Node ID is empty");
 
     // Check if node ID is valid hex
-    if my_info.node_id.len() != 8 || !my_info.node_id.chars().all(|c| c.is_ascii_hexdigit()) {
-        anyhow::bail!("Invalid node ID format: {id}", id = my_info.node_id);
-    }
+    anyhow::ensure!(
+        my_info.node_id.len() == 8 && my_info.node_id.chars().all(|c| c.is_ascii_hexdigit()),
+        "Invalid node ID format: {}",
+        my_info.node_id
+    );
 
     Ok(json!({
         "node_id": my_info.node_id,

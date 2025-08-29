@@ -196,9 +196,10 @@ impl TestRunner {
             .filter_map(|name| TestCategory::from_str(name))
             .collect();
 
-        if self.categories.is_empty() {
-            anyhow::bail!("No valid test categories specified");
-        }
+        anyhow::ensure!(
+            !self.categories.is_empty(),
+            "No valid test categories specified"
+        );
 
         self.run_all_tests().await
     }

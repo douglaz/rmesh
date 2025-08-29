@@ -53,12 +53,11 @@ async fn test_connection_stability(ctx: &mut TestContext<'_>) -> Result<Value> {
         0.0
     };
 
-    if success_rate < 80.0 {
-        anyhow::bail!(
-            "Connection unstable: {rate:.1}% success rate",
-            rate = success_rate
-        );
-    }
+    anyhow::ensure!(
+        success_rate >= 80.0,
+        "Connection unstable: {:.1}% success rate",
+        success_rate
+    );
 
     Ok(json!({
         "successful_pings": successful_pings,
@@ -75,9 +74,10 @@ async fn test_packet_round_trip(ctx: &mut TestContext<'_>) -> Result<Value> {
     let elapsed = start.elapsed();
 
     // Check if we have basic device info
-    if state.my_node_info.is_none() && state.nodes.is_empty() {
-        anyhow::bail!("No device information received");
-    }
+    anyhow::ensure!(
+        state.my_node_info.is_some() || !state.nodes.is_empty(),
+        "No device information received"
+    );
 
     Ok(json!({
         "round_trip_ms": elapsed.as_millis(),
@@ -102,12 +102,11 @@ async fn test_response_time(ctx: &mut TestContext<'_>) -> Result<Value> {
     let min_response_time = *response_times.iter().min().unwrap_or(&0);
     let max_response_time = *response_times.iter().max().unwrap_or(&0);
 
-    if avg_response_time > 1000 {
-        anyhow::bail!(
-            "Response time too high: {time}ms average",
-            time = avg_response_time
-        );
-    }
+    anyhow::ensure!(
+        avg_response_time <= 1000,
+        "Response time too high: {}ms average",
+        avg_response_time
+    );
 
     Ok(json!({
         "average_ms": avg_response_time,

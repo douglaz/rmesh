@@ -22,9 +22,7 @@ pub fn get_tests() -> Vec<Test> {
 async fn test_list_channels(ctx: &mut TestContext<'_>) -> Result<Value> {
     let channels = rmesh_core::channel::list_channels(ctx.connection).await?;
 
-    if channels.is_empty() {
-        anyhow::bail!("No channels configured");
-    }
+    anyhow::ensure!(!channels.is_empty(), "No channels configured");
 
     Ok(json!({
         "channel_count": channels.len(),

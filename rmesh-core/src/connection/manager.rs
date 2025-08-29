@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 use meshtastic::Message as ProstMessage;
 use meshtastic::api::state::Configured;
 use meshtastic::api::{ConnectedStreamApi, StreamApi};
@@ -117,9 +117,10 @@ impl ConnectionManager {
             let ports =
                 utils::stream::available_serial_ports().context("Failed to list serial ports")?;
 
-            if ports.is_empty() {
-                bail!("No serial ports found. Please specify --port or --ble");
-            }
+            ensure!(
+                !ports.is_empty(),
+                "No serial ports found. Please specify --port or --ble"
+            );
 
             let port_name = ports[0].clone();
             info!("Using auto-detected port: {port_name}");

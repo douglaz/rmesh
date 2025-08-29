@@ -1,5 +1,5 @@
 use crate::connection::ConnectionManager;
-use anyhow::{Result, bail};
+use anyhow::{Result, bail, ensure};
 use meshtastic::{Message, protobufs};
 use serde_json::json;
 
@@ -10,9 +10,10 @@ pub async fn get_config_value(
 ) -> Result<serde_json::Value> {
     // Parse the key
     let parts: Vec<&str> = key.split('.').collect();
-    if parts.len() != 2 {
-        bail!("Invalid config key format. Use format: category.field (e.g., lora.region)");
-    }
+    ensure!(
+        parts.len() == 2,
+        "Invalid config key format. Use format: category.field (e.g., lora.region)"
+    );
 
     let category = parts[0];
     let field = parts[1];
@@ -148,9 +149,10 @@ pub async fn set_config_value(
     let api = connection.get_api()?;
 
     let parts: Vec<&str> = key.split('.').collect();
-    if parts.len() != 2 {
-        bail!("Invalid config key format. Use format: category.field (e.g., lora.region)");
-    }
+    ensure!(
+        parts.len() == 2,
+        "Invalid config key format. Use format: category.field (e.g., lora.region)"
+    );
 
     let category = parts[0];
     let field = parts[1];
