@@ -153,15 +153,33 @@ use meshtastic::types::NodeId;
 impl meshtastic::packet::PacketRouter<(), std::convert::Infallible> for SimplePacketRouter {
     fn handle_packet_from_radio(
         &mut self,
-        _packet: protobufs::FromRadio,
+        packet: protobufs::FromRadio,
     ) -> Result<(), std::convert::Infallible> {
+        if let Some(variant) = &packet.payload_variant {
+            debug!(
+                "SimplePacketRouter: Ignoring FromRadio packet (variant: {variant:?})",
+                variant = std::mem::discriminant(variant)
+            );
+        } else {
+            debug!("SimplePacketRouter: Ignoring empty FromRadio packet");
+        }
         Ok(())
     }
 
     fn handle_mesh_packet(
         &mut self,
-        _packet: protobufs::MeshPacket,
+        packet: protobufs::MeshPacket,
     ) -> Result<(), std::convert::Infallible> {
+        let portnum = packet.payload_variant.as_ref().and_then(|p| match p {
+            protobufs::mesh_packet::PayloadVariant::Decoded(d) => Some(d.portnum()),
+            _ => None,
+        });
+
+        debug!(
+            "SimplePacketRouter: Ignoring MeshPacket (from: {from:08x}, to: {to:08x}, portnum: {portnum:?})",
+            from = packet.from,
+            to = packet.to
+        );
         Ok(())
     }
 
