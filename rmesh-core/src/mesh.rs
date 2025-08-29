@@ -137,7 +137,7 @@ pub async fn get_neighbors(connection: &ConnectionManager) -> Result<Vec<NodeInf
                     .map(|h| {
                         let now = std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap()
+                            .unwrap_or_default()
                             .as_secs();
                         // Use saturating subtraction to avoid overflow if timestamp is in the future
                         now.saturating_sub(h) < 3600 // Heard within last hour
@@ -171,7 +171,7 @@ pub async fn get_network_stats(connection: &ConnectionManager) -> Result<Network
     let state = connection.get_device_state().await;
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
+        .unwrap_or_default()
         .as_secs();
 
     let total_nodes = state.nodes.len();

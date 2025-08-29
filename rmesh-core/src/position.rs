@@ -43,7 +43,7 @@ pub async fn set_position(
         altitude,
         time: std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs() as u32,
         ..Default::default()
     };
@@ -139,7 +139,7 @@ fn process_packet_for_position(
         },
         last_updated: std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs(),
     })
 }

@@ -25,7 +25,10 @@ pub async fn handle_admin(
         AdminCommands::FactoryReset { confirm } => {
             if !confirm {
                 print_error("FACTORY RESET WILL ERASE ALL SETTINGS!");
-                println!("{}", "This operation cannot be undone.".red().bold());
+                println!(
+                    "{message}",
+                    message = "This operation cannot be undone.".red().bold()
+                );
                 print_warning("Use --confirm to proceed with factory reset.");
                 bail!("Operation cancelled");
             }

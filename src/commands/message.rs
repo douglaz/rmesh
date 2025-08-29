@@ -74,10 +74,9 @@ pub async fn handle_message(
                 api.send_text(
                     &mut router,
                     text.clone(),
-                    if dest.is_some() {
-                        meshtastic::packet::PacketDestination::Node(dest.unwrap().into())
-                    } else {
-                        meshtastic::packet::PacketDestination::Broadcast
+                    match dest {
+                        Some(d) => meshtastic::packet::PacketDestination::Node(d.into()),
+                        None => meshtastic::packet::PacketDestination::Broadcast,
                     },
                     false,  // want_ack
                     (channel as u32).into(),
@@ -88,10 +87,9 @@ pub async fn handle_message(
             
             let sent_msg = SentMessage {
                 text: text.clone(),
-                destination: if dest.is_some() { 
-                    format!("Node {:08x}", dest.unwrap()) 
-                } else { 
-                    "Broadcast".to_string() 
+                destination: match dest {
+                    Some(d) => format!("Node {d:08x}"),
+                    None => "Broadcast".to_string(),
                 },
                 channel,
                 acknowledged,

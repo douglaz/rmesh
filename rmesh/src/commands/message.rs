@@ -33,7 +33,7 @@ pub async fn handle_message(
             let sent_msg = SentMessage {
                 text: text.clone(),
                 destination: dest
-                    .map(|d| format!("{:08x}", d))
+                    .map(|d| format!("{d:08x}"))
                     .unwrap_or_else(|| "Broadcast".to_string()),
                 channel,
                 acknowledged: if ack { Some(false) } else { None },
@@ -43,11 +43,14 @@ pub async fn handle_message(
                 OutputFormat::Json => print_output(&sent_msg, format),
                 OutputFormat::Table => {
                     print_success(&format!(
-                        "Message sent to {} on channel {}",
-                        sent_msg.destination, channel
+                        "Message sent to {destination} on channel {channel}",
+                        destination = sent_msg.destination
                     ));
                     if ack {
-                        println!("{}", "Waiting for acknowledgment...".yellow());
+                        println!(
+                            "{message}",
+                            message = "Waiting for acknowledgment...".yellow()
+                        );
                     }
                 }
             }
@@ -75,13 +78,16 @@ pub async fn handle_message(
                     OutputFormat::Json => print_output(&messages, format),
                     OutputFormat::Table => {
                         for msg in messages {
-                            println!("{} [{}]: {}", msg.from.blue().bold(), msg.channel, msg.text);
+                            println!(
+                                "{from} [{channel}]: {text}",
+                                from = msg.from.blue().bold(),
+                                channel = msg.channel,
+                                text = msg.text
+                            );
                             if let (Some(snr), Some(rssi)) = (msg.snr, msg.rssi) {
                                 println!(
-                                    "  {} SNR: {:.1} dB, RSSI: {} dBm",
-                                    "Signal:".dimmed(),
-                                    snr,
-                                    rssi
+                                    "  {label} SNR: {snr:.1} dB, RSSI: {rssi} dBm",
+                                    label = "Signal:".dimmed()
                                 );
                             }
                         }
@@ -101,7 +107,7 @@ pub async fn handle_message(
                 match format {
                     OutputFormat::Json => {
                         if let Ok(json) = serde_json::to_string(&msg) {
-                            println!("{}", json);
+                            println!("{json}");
                         }
                     }
                     OutputFormat::Table => {

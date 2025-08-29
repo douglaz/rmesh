@@ -11,13 +11,13 @@ pub fn print_output<T: Serialize>(data: T, format: OutputFormat) {
     match format {
         OutputFormat::Json => {
             if let Ok(json) = serde_json::to_string_pretty(&data) {
-                println!("{}", json);
+                println!("{json}");
             }
         }
         OutputFormat::Table => {
             // Default table output - override in specific implementations
             if let Ok(json) = serde_json::to_string_pretty(&data) {
-                println!("{}", json);
+                println!("{json}");
             }
         }
     }

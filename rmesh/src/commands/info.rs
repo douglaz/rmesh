@@ -106,7 +106,7 @@ pub async fn handle_info(
                         Cell::new("Num Channels"),
                         Cell::new(radio_info.num_channels),
                     ]);
-                    println!("{}", table);
+                    println!("{table}");
                 }
             }
         }
@@ -150,7 +150,7 @@ pub async fn handle_info(
                         ]);
                     }
 
-                    println!("{}", table);
+                    println!("{table}");
                 }
             }
         }
@@ -184,7 +184,7 @@ pub async fn handle_info(
                         ]);
                     }
 
-                    println!("{}", table);
+                    println!("{table}");
                 }
             }
         }
@@ -229,7 +229,7 @@ pub async fn handle_info(
                         ]);
                     }
 
-                    println!("{}", table);
+                    println!("{table}");
                 }
             }
         }
@@ -301,7 +301,7 @@ pub async fn handle_info(
                         ]);
                     }
 
-                    println!("{}", table);
+                    println!("{table}");
                 }
             }
         }

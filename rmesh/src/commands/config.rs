@@ -37,18 +37,18 @@ pub async fn handle_config(
                         Cell::new(&config_value.key),
                         Cell::new(config_value.value.to_string()),
                     ]);
-                    println!("{}", table);
+                    println!("{table}");
                 }
             }
 
-            print_info(&format!("Configuration value for '{}' retrieved", key));
+            print_info(&format!("Configuration value for '{key}' retrieved"));
         }
 
         ConfigCommands::Set { key, value } => {
             // Use the core library function
             rmesh_core::config::set_config_value(&mut connection, &key, &value).await?;
 
-            print_success(&format!("Configuration '{}' set to '{}'", key, value));
+            print_success(&format!("Configuration '{key}' set to '{value}'"));
             println!(
                 "{}",
                 "Note: Some settings may require a device reboot to take effect".yellow()

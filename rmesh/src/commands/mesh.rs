@@ -23,13 +23,13 @@ pub async fn handle_mesh(
                 OutputFormat::Table => {
                     // Print network summary
                     if let Some(my_node) = topology.get("my_node") {
-                        println!("\n{}", "My Node:".bold().cyan());
+                        println!("\n{title}", title = "My Node:".bold().cyan());
                         if let Some(node_obj) = my_node.as_object() {
                             if let Some(id) = node_obj.get("node_id") {
-                                println!("  ID: {}", id.as_str().unwrap_or("unknown"));
+                                println!("  ID: {id}", id = id.as_str().unwrap_or("unknown"));
                             }
                             if let Some(num) = node_obj.get("node_num") {
-                                println!("  Number: {:08x}", num.as_u64().unwrap_or(0));
+                                println!("  Number: {num:08x}", num = num.as_u64().unwrap_or(0));
                             }
                         }
                     }
@@ -38,7 +38,7 @@ pub async fn handle_mesh(
                     if let Some(nodes) = topology.get("nodes").and_then(|n| n.as_array()) {
                         println!(
                             "\n{}",
-                            format!("Network Nodes ({} total):", nodes.len())
+                            format!("Network Nodes ({total} total):", total = nodes.len())
                                 .bold()
                                 .green()
                         );
@@ -66,7 +66,7 @@ pub async fn handle_mesh(
                                     Cell::new(
                                         obj.get("snr")
                                             .and_then(|v| v.as_f64())
-                                            .map(|s| format!("{:.1}", s))
+                                            .map(|s| format!("{s:.1}"))
                                             .unwrap_or_else(|| "N/A".to_string()),
                                     ),
                                     Cell::new(
@@ -85,11 +85,11 @@ pub async fn handle_mesh(
                                                     .as_secs();
                                                 let ago = now.saturating_sub(h);
                                                 if ago < 60 {
-                                                    format!("{}s ago", ago)
+                                                    format!("{ago}s ago")
                                                 } else if ago < 3600 {
-                                                    format!("{}m ago", ago / 60)
+                                                    format!("{minutes}m ago", minutes = ago / 60)
                                                 } else {
-                                                    format!("{}h ago", ago / 3600)
+                                                    format!("{hours}h ago", hours = ago / 3600)
                                                 }
                                             })
                                             .unwrap_or_else(|| "Never".to_string()),
@@ -98,7 +98,7 @@ pub async fn handle_mesh(
                             }
                         }
 
-                        println!("{}", table);
+                        println!("{table}");
                     }
 
                     // Print network edges if available
@@ -106,7 +106,7 @@ pub async fn handle_mesh(
                         if !edges.is_empty() {
                             println!(
                                 "\n{}",
-                                format!("Direct Connections ({}):", edges.len())
+                                format!("Direct Connections ({count}):", count = edges.len())
                                     .bold()
                                     .blue()
                             );
@@ -139,7 +139,7 @@ pub async fn handle_mesh(
         }
 
         MeshCommands::Traceroute { dest } => {
-            print_info(&format!("Performing traceroute to node {:08x}...", dest));
+            print_info(&format!("Performing traceroute to node {dest:08x}..."));
 
             // Perform traceroute
             let hops = rmesh_core::mesh::traceroute(&mut connection, dest).await?;
@@ -156,8 +156,8 @@ pub async fn handle_mesh(
                 OutputFormat::Json => print_output(&hops, format),
                 OutputFormat::Table => {
                     println!(
-                        "\n{}",
-                        format!("Traceroute to {:08x}:", dest).bold().green()
+                        "\n{title}",
+                        title = format!("Traceroute to {dest:08x}:").bold().green()
                     );
 
                     let mut table = create_table();
@@ -172,11 +172,11 @@ pub async fn handle_mesh(
                     for hop in hops {
                         table.add_row(vec![
                             Cell::new(hop.hop_number),
-                            Cell::new(format!("{:08x}", hop.node_id)),
+                            Cell::new(format!("{node_id:08x}", node_id = hop.node_id)),
                             Cell::new(&hop.node_name),
                             Cell::new(
                                 hop.snr
-                                    .map(|s| format!("{:.1} dB", s))
+                                    .map(|s| format!("{s:.1} dB"))
                                     .unwrap_or_else(|| "N/A".to_string()),
                             ),
                             Cell::new(
@@ -187,7 +187,7 @@ pub async fn handle_mesh(
                         ]);
                     }
 
-                    println!("{}", table);
+                    println!("{table}");
                 }
             }
         }
@@ -199,7 +199,7 @@ pub async fn handle_mesh(
             let neighbors = rmesh_core::mesh::get_neighbors(&connection).await?;
 
             if neighbors.is_empty() {
-                println!("{}", "No direct neighbors found".yellow());
+                println!("{message}", message = "No direct neighbors found".yellow());
                 return Ok(());
             }
 
@@ -260,23 +260,26 @@ pub async fn handle_mesh(
                         ]);
                     }
 
-                    println!("{}", table);
+                    println!("{table}");
 
                     // Calculate and show network stats
                     if let Ok(stats) = rmesh_core::mesh::get_network_stats(&connection).await {
-                        println!("\n{}", "Network Statistics:".bold().cyan());
-                        println!("  Total Nodes: {}", stats.total_nodes);
-                        println!("  Active Nodes: {}", stats.active_nodes);
-                        println!("  Direct Neighbors: {}", stats.neighbors);
+                        println!("\n{title}", title = "Network Statistics:".bold().cyan());
+                        println!("  Total Nodes: {total}", total = stats.total_nodes);
+                        println!("  Active Nodes: {active}", active = stats.active_nodes);
+                        println!(
+                            "  Direct Neighbors: {neighbors}",
+                            neighbors = stats.neighbors
+                        );
                         if let Some(snr) = stats.average_snr {
-                            println!("  Average SNR: {:.1} dB", snr);
+                            println!("  Average SNR: {snr:.1} dB");
                         }
                         if let Some(rssi) = stats.average_rssi {
-                            println!("  Average RSSI: {} dBm", rssi);
+                            println!("  Average RSSI: {rssi} dBm");
                         }
                         println!(
-                            "  Mesh Health: {}",
-                            match stats.mesh_health.as_str() {
+                            "  Mesh Health: {health}",
+                            health = match stats.mesh_health.as_str() {
                                 "Excellent" => stats.mesh_health.green(),
                                 "Good" => stats.mesh_health.green(),
                                 "Fair" => stats.mesh_health.yellow(),

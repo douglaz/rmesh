@@ -208,3 +208,136 @@ rg '(bail!|ensure!)\([^)]*"[^"]*\{\}' --pcre2
 - After any changes that touch multiple files
 
 **Important**: Code must be properly formatted and pass all clippy checks before being committed to the repository.
+
+## Test Conventions
+
+### Test Functions Must Return Result
+All test functions MUST return `Result<()>` and use the `?` operator for error propagation:
+
+```rust
+// GOOD - Test returns Result and uses ?
+#[test]
+fn test_decode_invoice() -> Result<()> {
+    let invoice = decode_invoice("lnbc...")?;
+    assert_eq!(invoice.amount_msat, 100000);
+    Ok(())
+}
+
+// BAD - Test doesn't return Result
+#[test]
+fn test_decode_invoice() {
+    let invoice = decode_invoice("lnbc...").unwrap();  // BAD - using unwrap
+    assert_eq!(invoice.amount_msat, 100000);
+}
+```
+
+This pattern ensures:
+- Tests fail properly on errors instead of panicking
+- Error messages are properly displayed in test output
+- Consistent error handling across the codebase
+
+## CLI-Specific Conventions
+
+### Output Format
+- **JSON by default**: All command outputs should be valid JSON for easy parsing
+- **Clean output**: No debug prints or progress messages to stdout (use stderr if needed)
+- **Structured data**: Always output structured data, not raw text
+- **Consistent formatting**: Use serde_json for consistent JSON formatting
+
+```rust
+// GOOD - Clean JSON output
+println!("{}", serde_json::to_string_pretty(&result)?);
+
+// BAD - Mixed output
+println!("Processing...");  // This goes to stdout and breaks JSON parsing
+println!("{}", serde_json::to_string(&result)?);
+```
+
+### Command Line Arguments
+- Use descriptive long names for all arguments
+- Provide short versions for commonly used arguments
+- Group related arguments together
+- Use consistent naming patterns across commands
+
+### Error Messages
+- Error messages should go to stderr, not stdout
+- Include context about what operation failed
+- Suggest possible fixes when appropriate
+- Keep error messages concise but informative
+
+```rust
+// GOOD - Informative error to stderr
+eprintln!("Error: Failed to connect to device at {address}: {error}");
+eprintln!("Hint: Check that the device is powered on and in range");
+
+// BAD - Vague error to stdout
+println!("Connection failed");
+```
+
+## Development Process
+
+### Pre-Implementation Review
+Before implementing any feature:
+1. Review existing similar code to understand patterns
+2. Check for existing utilities that can be reused
+3. Ensure the approach follows established conventions
+4. Consider error handling strategy upfront
+
+### Code Organization
+- Keep modules focused on a single responsibility
+- Use clear, descriptive names for functions and types
+- Group related functionality together
+- Avoid deeply nested code structures
+
+### Dependencies
+- Prefer using existing dependencies already in the project
+- Avoid adding new dependencies for trivial functionality
+- When adding dependencies, ensure they're well-maintained
+- Document why a dependency is needed if it's not obvious
+
+## Development Checklist
+
+For every new feature or significant change:
+
+### 1. Pre-Development
+- [ ] Review existing similar code to understand patterns
+- [ ] Check for existing utilities that can be reused
+- [ ] Plan error handling approach
+- [ ] Consider test strategy
+
+### 2. Implementation
+- [ ] Follow all naming conventions (snake_case for functions/variables, PascalCase for types)
+- [ ] Use proper error handling (anyhow::Result, bail!, ensure!, context/with_context)
+- [ ] Follow string interpolation rules (named placeholders)
+- [ ] Ensure functions have clear, single responsibilities
+- [ ] Add appropriate documentation/comments if needed
+
+### 3. Testing
+- [ ] Add unit tests for new functionality
+- [ ] Ensure test functions return `Result<()>` and use `?` operator
+- [ ] Test both success and error cases
+- [ ] Update existing tests if behavior changes
+- [ ] Run all tests: `cargo test`
+
+### 4. Code Quality
+- [ ] Run formatting: `cargo fmt --all`
+- [ ] Run clippy: `cargo clippy --locked --offline --workspace --all-targets -- --deny warnings`
+- [ ] Fix any warnings or errors
+- [ ] Review code for convention compliance
+
+### 5. Integration
+- [ ] Test the feature manually with realistic inputs
+- [ ] Verify output format is correct (especially for CLI commands)
+- [ ] Test error conditions and edge cases
+- [ ] Ensure no debug output goes to stdout
+
+### 6. Documentation
+- [ ] Update README.md if adding new features or commands
+- [ ] Update CLI help text if applicable
+- [ ] Document any non-obvious design decisions
+- [ ] Update examples if behavior changes
+
+### 7. Final Verification
+- [ ] Run complete check sequence: `cargo fmt --all && cargo clippy --locked --offline --workspace --all-targets -- --deny warnings && cargo test`
+- [ ] Ensure all checks pass
+- [ ] Test the feature end-to-end one final time

@@ -41,7 +41,7 @@ pub async fn handle_position(
                         if let Some(time) = &pos.time {
                             table.add_row(vec![Cell::new("Time"), Cell::new(time)]);
                         }
-                        println!("{}", table);
+                        println!("{table}");
                     }
                 }
             } else {
@@ -54,16 +54,17 @@ pub async fn handle_position(
             rmesh_core::position::set_position(&mut connection, lat, lon, alt).await?;
 
             print_success(&format!(
-                "Position set to: {:.6}, {:.6}{}",
-                lat,
-                lon,
-                alt.map(|a| format!(" at {} m", a)).unwrap_or_default()
+                "Position set to: {lat:.6}, {lon:.6}{altitude}",
+                altitude = alt.map(|a| format!(" at {a} m")).unwrap_or_default()
             ));
         }
 
         PositionCommands::Track { nodes } => {
             print_info("Starting position tracking...");
-            println!("{}", "Press Ctrl+C to stop tracking".yellow());
+            println!(
+                "{message}",
+                message = "Press Ctrl+C to stop tracking".yellow()
+            );
 
             // Get packet receiver
             let mut receiver = connection.take_packet_receiver()?;
@@ -105,7 +106,7 @@ pub async fn handle_position(
                             ]);
                         }
 
-                        println!("{}", table);
+                        println!("{table}");
                     }
                 }
             }
