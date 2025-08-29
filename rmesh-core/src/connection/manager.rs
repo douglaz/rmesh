@@ -404,7 +404,7 @@ async fn process_from_radio_packet(
                         id: user.id.clone(),
                         long_name: user.long_name.clone(),
                         short_name: user.short_name.clone(),
-                        hw_model: Some(format!("{:?}", user.hw_model())),
+                        hw_model: Some(format!("{model:?}", model = user.hw_model())),
                     },
                     last_heard: Some(node_info.last_heard as u64),
                     snr: Some(node_info.snr),
@@ -423,7 +423,7 @@ async fn process_from_radio_packet(
                     .as_ref()
                     .map(|s| s.name.clone())
                     .unwrap_or_else(|| format!("Channel {index}", index = channel.index)),
-                role: format!("{:?}", channel.role()),
+                role: format!("{role:?}", role = channel.role()),
                 has_psk: channel
                     .settings
                     .as_ref()
@@ -649,7 +649,7 @@ async fn process_mesh_packet(
                         }
                     }
                     meshtastic::protobufs::routing::Variant::ErrorReason(reason) => {
-                        debug!("Routing error: {:?}", reason);
+                        debug!("Routing error: {reason:?}");
                         // If this is an error for a traceroute request, send empty result
                         if packet_data.request_id != 0 {
                             let mut waiters = route_waiters.lock().await;
@@ -717,10 +717,10 @@ async fn process_config_response(
         match payload {
             meshtastic::protobufs::config::PayloadVariant::Device(device_config) => {
                 state.device_config = Some(DeviceConfig {
-                    role: format!("{:?}", device_config.role()),
+                    role: format!("{role:?}", role = device_config.role()),
                     button_gpio: device_config.button_gpio,
                     buzzer_gpio: device_config.buzzer_gpio,
-                    rebroadcast_mode: format!("{:?}", device_config.rebroadcast_mode()),
+                    rebroadcast_mode: format!("{mode:?}", mode = device_config.rebroadcast_mode()),
                     node_info_broadcast_secs: device_config.node_info_broadcast_secs,
                     tzdef: if device_config.tzdef.is_empty() {
                         None
@@ -739,7 +739,7 @@ async fn process_config_response(
                     fixed_position: position_config.fixed_position,
                     gps_enabled: position_config.gps_mode()
                         != meshtastic::protobufs::config::position_config::GpsMode::Disabled,
-                    gps_mode: format!("{:?}", position_config.gps_mode()),
+                    gps_mode: format!("{mode:?}", mode = position_config.gps_mode()),
                 });
                 debug!("Updated position config");
             }
@@ -772,12 +772,12 @@ async fn process_config_response(
             meshtastic::protobufs::config::PayloadVariant::Display(display_config) => {
                 state.display_config = Some(DisplayConfig {
                     screen_on_secs: display_config.screen_on_secs,
-                    gps_format: format!("{:?}", display_config.gps_format()),
+                    gps_format: format!("{format:?}", format = display_config.gps_format()),
                     auto_screen_carousel_secs: display_config.auto_screen_carousel_secs,
                     compass_north_top: display_config.compass_north_top,
                     flip_screen: display_config.flip_screen,
-                    units: format!("{:?}", display_config.units()),
-                    displaymode: format!("{:?}", display_config.displaymode()),
+                    units: format!("{units:?}", units = display_config.units()),
+                    displaymode: format!("{mode:?}", mode = display_config.displaymode()),
                     heading_bold: display_config.heading_bold,
                     wake_on_tap_or_motion: display_config.wake_on_tap_or_motion,
                 });
@@ -786,12 +786,12 @@ async fn process_config_response(
             meshtastic::protobufs::config::PayloadVariant::Lora(lora_config) => {
                 state.lora_config = Some(LoraConfig {
                     use_preset: lora_config.use_preset,
-                    modem_preset: format!("{:?}", lora_config.modem_preset()),
+                    modem_preset: format!("{preset:?}", preset = lora_config.modem_preset()),
                     bandwidth: lora_config.bandwidth,
                     spread_factor: lora_config.spread_factor,
                     coding_rate: lora_config.coding_rate,
                     frequency_offset: lora_config.frequency_offset,
-                    region: format!("{:?}", lora_config.region()),
+                    region: format!("{region:?}", region = lora_config.region()),
                     hop_limit: lora_config.hop_limit,
                     tx_enabled: lora_config.tx_enabled,
                     tx_power: lora_config.tx_power,
@@ -803,7 +803,7 @@ async fn process_config_response(
             meshtastic::protobufs::config::PayloadVariant::Bluetooth(bluetooth_config) => {
                 state.bluetooth_config = Some(BluetoothConfig {
                     enabled: bluetooth_config.enabled,
-                    mode: format!("{:?}", bluetooth_config.mode()),
+                    mode: format!("{mode:?}", mode = bluetooth_config.mode()),
                     fixed_pin: bluetooth_config.fixed_pin,
                     device_logging_enabled: false, // Not available in current protobuf
                 });
