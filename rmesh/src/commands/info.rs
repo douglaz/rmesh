@@ -3,7 +3,7 @@ use comfy_table::Cell;
 use serde::Serialize;
 
 use crate::cli::{InfoCommands, TelemetryType};
-use crate::output::{create_table, print_output, OutputFormat};
+use crate::output::{OutputFormat, create_table, print_output};
 use rmesh_core::ConnectionManager;
 
 #[derive(Debug, Serialize)]

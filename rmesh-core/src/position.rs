@@ -1,10 +1,10 @@
 use crate::connection::ConnectionManager;
 use crate::state::Position;
 use anyhow::Result;
+use meshtastic::Message as ProstMessage;
 use meshtastic::packet::{PacketDestination, PacketReceiver};
 use meshtastic::protobufs;
-use meshtastic::Message as ProstMessage;
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 use tracing::debug;
 
 /// Get position for a specific node

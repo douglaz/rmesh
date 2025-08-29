@@ -1,6 +1,6 @@
 use crate::connection::ConnectionManager;
 use anyhow::Result;
-use meshtastic::{protobufs, Message};
+use meshtastic::{Message, protobufs};
 
 /// Reboot the connected Meshtastic device
 ///

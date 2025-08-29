@@ -1,9 +1,9 @@
 use crate::cli::AdminCommands;
 use crate::output::OutputFormat;
 use crate::utils::{print_error, print_success, print_warning};
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use colored::*;
-use rmesh_core::{device, ConnectionManager};
+use rmesh_core::{ConnectionManager, device};
 
 pub async fn handle_admin(
     mut connection: ConnectionManager,

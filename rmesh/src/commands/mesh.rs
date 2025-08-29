@@ -1,5 +1,5 @@
 use crate::cli::MeshCommands;
-use crate::output::{create_table, print_output, OutputFormat};
+use crate::output::{OutputFormat, create_table, print_output};
 use crate::utils::print_info;
 use anyhow::Result;
 use colored::*;

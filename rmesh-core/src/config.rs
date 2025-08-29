@@ -1,6 +1,6 @@
 use crate::connection::ConnectionManager;
-use anyhow::{bail, Result};
-use meshtastic::{protobufs, Message};
+use anyhow::{Result, bail};
+use meshtastic::{Message, protobufs};
 use serde_json::json;
 
 /// Get a configuration value by key

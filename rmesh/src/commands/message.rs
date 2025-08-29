@@ -1,5 +1,5 @@
 use crate::cli::MessageCommands;
-use crate::output::{print_output, OutputFormat};
+use crate::output::{OutputFormat, print_output};
 use crate::utils::{print_info, print_success};
 use anyhow::Result;
 use colored::*;

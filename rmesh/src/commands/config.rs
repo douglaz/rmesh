@@ -1,5 +1,5 @@
 use crate::cli::ConfigCommands;
-use crate::output::{create_table, print_output, OutputFormat};
+use crate::output::{OutputFormat, create_table, print_output};
 use crate::utils::{print_info, print_success};
 use anyhow::Result;
 use colored::*;
@@ -66,7 +66,9 @@ pub async fn handle_config(
                         "{}",
                         "Full configuration listing not yet implemented".yellow()
                     );
-                    println!("Available categories: device, position, power, network, display, lora, bluetooth");
+                    println!(
+                        "Available categories: device, position, power, network, display, lora, bluetooth"
+                    );
                 }
             }
         }

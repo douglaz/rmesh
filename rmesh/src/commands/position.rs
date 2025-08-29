@@ -1,5 +1,5 @@
 use crate::cli::PositionCommands;
-use crate::output::{create_table, print_output, OutputFormat};
+use crate::output::{OutputFormat, create_table, print_output};
 use crate::utils::{print_info, print_success, print_warning};
 use anyhow::Result;
 use colored::*;

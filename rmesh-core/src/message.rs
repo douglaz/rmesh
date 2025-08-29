@@ -3,7 +3,7 @@ use anyhow::Result;
 use meshtastic::packet::{PacketDestination, PacketReceiver};
 use meshtastic::protobufs;
 use serde::Serialize;
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 use tracing::debug;
 
 /// Send a text message to the mesh network

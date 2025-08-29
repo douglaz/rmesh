@@ -5,7 +5,7 @@ mod utils;
 
 use anyhow::Result;
 use clap::Parser;
-use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 use crate::cli::Cli;
 use crate::commands::handle_command;

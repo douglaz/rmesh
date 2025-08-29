@@ -1,6 +1,6 @@
 use crate::connection::ConnectionManager;
 use anyhow::Result;
-use meshtastic::{protobufs, Message};
+use meshtastic::{Message, protobufs};
 use serde::Serialize;
 
 /// List all channels configured on the device

@@ -19,7 +19,7 @@ pub use connection::ConnectionManager;
 
 // Re-export meshtastic types for convenience
 pub use meshtastic::packet::PacketDestination;
-pub use meshtastic::{protobufs, Message};
+pub use meshtastic::{Message, protobufs};
 
 #[cfg(test)]
 mod tests;

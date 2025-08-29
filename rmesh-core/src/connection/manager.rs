@@ -1,13 +1,13 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
+use meshtastic::Message as ProstMessage;
 use meshtastic::api::state::Configured;
 use meshtastic::api::{ConnectedStreamApi, StreamApi};
 use meshtastic::packet::{PacketReceiver, PacketRouter};
 use meshtastic::utils;
-use meshtastic::Message as ProstMessage;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{Mutex, oneshot};
 use tokio::task::JoinHandle;
 use tracing::{debug, info, warn};
 
