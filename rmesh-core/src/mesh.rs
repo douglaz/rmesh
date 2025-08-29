@@ -237,20 +237,45 @@ pub async fn get_network_stats(connection: &ConnectionManager) -> Result<Network
 }
 
 /// Request node information from remote nodes
+///
+/// Uses WantConfigId to trigger the device to send all node information.
+/// Returns the specific node info if node_num is provided, or None for all nodes.
 pub async fn request_node_info(
-    _connection: &mut ConnectionManager,
+    connection: &mut ConnectionManager,
     node_num: Option<u32>,
-) -> Result<()> {
-    // Note: Node info request requires specific admin message variant
-    // that may not be available in current protobuf version
-    // For now, we rely on passive node discovery from received packets
+) -> Result<Option<NodeInfo>> {
+    use meshtastic::protobufs;
+    use tokio::time::Duration;
+
+    let api = connection.get_api()?;
+
+    // Generate a unique config ID for tracking
+    let config_id = rand::random::<u32>();
+
+    // Send WantConfigId to request full node database
+    api.send_to_radio_packet(Some(protobufs::to_radio::PayloadVariant::WantConfigId(
+        config_id,
+    )))
+    .await?;
 
     debug!(
-        "Node info request for {target} - passive discovery only",
+        "Requesting node info for {target} via WantConfigId",
         target = node_num
             .map(|n| format!("{n:08x}"))
             .unwrap_or_else(|| "all nodes".to_string())
     );
 
-    Ok(())
+    // Wait for node info to be received and processed
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    // Get the updated device state with node info
+    let state = connection.get_device_state().await;
+
+    // Return the requested node info
+    if let Some(num) = node_num {
+        Ok(state.nodes.get(&num).cloned())
+    } else {
+        // For "all nodes", return the first node or None
+        Ok(state.nodes.values().next().cloned())
+    }
 }
