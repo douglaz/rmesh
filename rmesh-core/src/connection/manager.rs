@@ -438,8 +438,9 @@ async fn process_from_radio_packet(
             process_mesh_packet(mesh_packet, device_state, ack_waiters, route_waiters).await?;
         }
 
-        _ => {
+        variant => {
             // Other packet types not yet handled
+            debug!("Unhandled FromRadio packet variant: {variant:?}");
         }
     }
 
@@ -584,8 +585,9 @@ async fn process_mesh_packet(
                                 particles_100um: m.particles_100um,
                             });
                         }
-                        _ => {
+                        variant => {
                             // Other telemetry types not yet handled
+                            debug!("Unhandled telemetry variant: {variant:?}");
                         }
                     }
                 }
@@ -667,7 +669,9 @@ async fn process_mesh_packet(
                             }
                         }
                     }
-                    _ => {}
+                    variant => {
+                        debug!("Unhandled routing variant: {variant:?}");
+                    }
                 }
             }
 
@@ -684,8 +688,12 @@ async fn process_mesh_packet(
             }
         }
 
-        _ => {
+        portnum => {
             // Other port types not yet handled
+            debug!(
+                "Unhandled mesh packet with portnum {portnum:?} from {from:08x}",
+                from = mesh_packet.from
+            );
         }
     }
 
