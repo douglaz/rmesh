@@ -239,26 +239,115 @@ pub async fn set_config_value(
 }
 
 /// List all configuration settings
-pub async fn list_config(_connection: &ConnectionManager) -> Result<serde_json::Value> {
-    // Note: In a real implementation, we would need to:
-    // 1. Send config request packets for each category
-    // 2. Listen for all config responses
-    // 3. Build a complete config structure
-    // For now, return a placeholder
+pub async fn list_config(connection: &ConnectionManager) -> Result<serde_json::Value> {
+    // Get the current device state which includes all config
+    let state = connection.get_device_state().await;
 
-    Ok(json!({
-        "status": "not_implemented",
-        "message": "Config listing requires packet-based communication",
-        "categories": [
-            "device",
-            "position",
-            "power",
-            "network",
-            "display",
-            "lora",
-            "bluetooth"
-        ]
-    }))
+    // Build complete configuration from cached state
+    let mut config = json!({});
+
+    // Add device config if available
+    if let Some(device_cfg) = &state.device_config {
+        config["device"] = json!({
+            "role": device_cfg.role,
+            "button_gpio": device_cfg.button_gpio,
+            "buzzer_gpio": device_cfg.buzzer_gpio,
+            "rebroadcast_mode": device_cfg.rebroadcast_mode,
+            "node_info_broadcast_secs": device_cfg.node_info_broadcast_secs,
+            "tzdef": device_cfg.tzdef,
+            "disable_triple_click": device_cfg.disable_triple_click,
+        });
+    }
+
+    // Add position config if available
+    if let Some(pos_cfg) = &state.position_config {
+        config["position"] = json!({
+            "position_broadcast_secs": pos_cfg.position_broadcast_secs,
+            "position_broadcast_smart_enabled": pos_cfg.position_broadcast_smart_enabled,
+            "fixed_position": pos_cfg.fixed_position,
+            "gps_enabled": pos_cfg.gps_enabled,
+            "gps_mode": pos_cfg.gps_mode,
+        });
+    }
+
+    // Add power config if available
+    if let Some(power_cfg) = &state.power_config {
+        config["power"] = json!({
+            "is_power_saving": power_cfg.is_power_saving,
+            "on_battery_shutdown_after_secs": power_cfg.on_battery_shutdown_after_secs,
+            "adc_multiplier_override": power_cfg.adc_multiplier_override,
+            "wait_bluetooth_secs": power_cfg.wait_bluetooth_secs,
+            "sds_secs": power_cfg.sds_secs,
+            "ls_secs": power_cfg.ls_secs,
+            "min_wake_secs": power_cfg.min_wake_secs,
+        });
+    }
+
+    // Add network config if available
+    if let Some(net_cfg) = &state.network_config {
+        config["network"] = json!({
+            "wifi_enabled": net_cfg.wifi_enabled,
+            "wifi_ssid": net_cfg.wifi_ssid,
+            "wifi_psk": net_cfg.wifi_psk,
+            "ntp_server": net_cfg.ntp_server,
+            "eth_enabled": net_cfg.eth_enabled,
+            "ipv4_config": net_cfg.ipv4_config,
+        });
+    }
+
+    // Add display config if available
+    if let Some(display_cfg) = &state.display_config {
+        config["display"] = json!({
+            "screen_on_secs": display_cfg.screen_on_secs,
+            "gps_format": display_cfg.gps_format,
+            "auto_screen_carousel_secs": display_cfg.auto_screen_carousel_secs,
+            "compass_north_top": display_cfg.compass_north_top,
+            "flip_screen": display_cfg.flip_screen,
+            "units": display_cfg.units,
+            "displaymode": display_cfg.displaymode,
+            "heading_bold": display_cfg.heading_bold,
+            "wake_on_tap_or_motion": display_cfg.wake_on_tap_or_motion,
+        });
+    }
+
+    // Add LoRa config if available
+    if let Some(lora_cfg) = &state.lora_config {
+        config["lora"] = json!({
+            "use_preset": lora_cfg.use_preset,
+            "modem_preset": lora_cfg.modem_preset,
+            "bandwidth": lora_cfg.bandwidth,
+            "spread_factor": lora_cfg.spread_factor,
+            "coding_rate": lora_cfg.coding_rate,
+            "frequency_offset": lora_cfg.frequency_offset,
+            "region": lora_cfg.region,
+            "hop_limit": lora_cfg.hop_limit,
+            "tx_enabled": lora_cfg.tx_enabled,
+            "tx_power": lora_cfg.tx_power,
+            "channel_num": lora_cfg.channel_num,
+            "ignore_mqtt": lora_cfg.ignore_mqtt,
+        });
+    }
+
+    // Add Bluetooth config if available
+    if let Some(bt_cfg) = &state.bluetooth_config {
+        config["bluetooth"] = json!({
+            "enabled": bt_cfg.enabled,
+            "mode": bt_cfg.mode,
+            "fixed_pin": bt_cfg.fixed_pin,
+            "device_logging_enabled": bt_cfg.device_logging_enabled,
+        });
+    }
+
+    // Return the complete configuration
+    if config.as_object().unwrap().is_empty() {
+        Ok(json!({
+            "status": "no_config",
+            "message": "No configuration data available. Device may not be fully synchronized.",
+            "hint": "Try running 'rmesh device refresh' to fetch latest configuration"
+        }))
+    } else {
+        Ok(config)
+    }
 }
 
 fn parse_region(value: &str) -> Result<protobufs::config::lo_ra_config::RegionCode> {

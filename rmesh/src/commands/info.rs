@@ -24,15 +24,62 @@ pub async fn handle_info(
 ) -> Result<()> {
     match subcommand {
         InfoCommands::Radio => {
-            // Note: In a real implementation, we would get this from device packets
+            // Get actual device information from the device state
+            let state = connection.get_device_state().await;
+
+            // Extract firmware version from min_app_version
+            let firmware_version = if let Some(my_info) = &state.my_node_info {
+                let major = my_info.min_app_version / 10000;
+                let minor = (my_info.min_app_version % 10000) / 100;
+                let patch = my_info.min_app_version % 100;
+                format!("{major}.{minor}.{patch}")
+            } else {
+                "Unknown".to_string()
+            };
+
+            // Get hardware model from nodes (typically the local node has this info)
+            let hardware_model = if let Some(my_info) = &state.my_node_info {
+                state
+                    .nodes
+                    .get(&my_info.node_num)
+                    .and_then(|node| node.user.hw_model.clone())
+                    .unwrap_or_else(|| "Unknown".to_string())
+            } else {
+                "Unknown".to_string()
+            };
+
+            // Get region from LoRa config
+            let region = state
+                .lora_config
+                .as_ref()
+                .map(|cfg| cfg.region.clone())
+                .unwrap_or_else(|| "Unknown".to_string());
+
+            // Get node ID and number from my_node_info
+            let (node_id, node_num) = if let Some(my_info) = &state.my_node_info {
+                (my_info.node_id.clone(), my_info.node_num)
+            } else {
+                ("Unknown".to_string(), 0)
+            };
+
+            // Check GPS status from position config
+            let has_gps = state
+                .position_config
+                .as_ref()
+                .map(|cfg| cfg.gps_enabled)
+                .unwrap_or(false);
+
+            // Count actual channels
+            let num_channels = state.channels.len();
+
             let radio_info = RadioInfo {
-                firmware_version: "2.0.0".to_string(),
-                hardware_model: "TBEAM".to_string(),
-                region: "US".to_string(),
-                node_id: "00000000".to_string(),
-                node_num: 0,
-                has_gps: true,
-                num_channels: 1,
+                firmware_version,
+                hardware_model,
+                region,
+                node_id,
+                node_num,
+                has_gps,
+                num_channels,
             };
 
             match format {

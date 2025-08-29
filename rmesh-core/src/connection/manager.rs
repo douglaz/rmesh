@@ -50,6 +50,7 @@ pub struct ConnectionManager {
     device_state: Arc<Mutex<DeviceState>>,
     packet_processor: Option<JoinHandle<()>>,
     ack_waiters: Arc<Mutex<HashMap<u32, oneshot::Sender<bool>>>>,
+    route_waiters: Arc<Mutex<HashMap<u32, oneshot::Sender<Vec<crate::mesh::RouteHop>>>>>,
 }
 
 impl ConnectionManager {
@@ -63,6 +64,7 @@ impl ConnectionManager {
             device_state: Arc::new(Mutex::new(DeviceState::new())),
             packet_processor: None,
             ack_waiters: Arc::new(Mutex::new(HashMap::new())),
+            route_waiters: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
@@ -152,15 +154,20 @@ impl ConnectionManager {
     async fn start_packet_processing(&mut self, mut receiver: PacketReceiver) {
         let device_state = self.device_state.clone();
         let ack_waiters = self.ack_waiters.clone();
+        let route_waiters = self.route_waiters.clone();
 
         // Spawn a background task to process packets
         let handle = tokio::spawn(async move {
             info!("Starting packet processing loop");
 
             while let Some(packet) = receiver.recv().await {
-                if let Err(e) =
-                    process_from_radio_packet(packet, device_state.clone(), ack_waiters.clone())
-                        .await
+                if let Err(e) = process_from_radio_packet(
+                    packet,
+                    device_state.clone(),
+                    ack_waiters.clone(),
+                    route_waiters.clone(),
+                )
+                .await
                 {
                     warn!("Error processing packet: {}", e);
                 }
@@ -207,6 +214,95 @@ impl ConnectionManager {
         self.packet_receiver
             .take()
             .context("Packet receiver already taken or not connected")
+    }
+
+    pub async fn send_traceroute(
+        &mut self,
+        destination: u32,
+        timeout_secs: u64,
+    ) -> Result<Vec<crate::mesh::RouteHop>> {
+        // Generate a unique request ID for tracking
+        let request_id = rand::random::<u32>();
+
+        // Create a oneshot channel for route response
+        let (tx, rx) = oneshot::channel();
+
+        // Register the route waiter
+        {
+            let mut waiters = self.route_waiters.lock().await;
+            waiters.insert(request_id, tx);
+        }
+
+        // Create the RouteDiscovery packet
+        let route_discovery = meshtastic::protobufs::RouteDiscovery {
+            route: Vec::new(),
+            route_back: Vec::new(),
+            snr_back: Vec::new(),
+            snr_towards: Vec::new(),
+        };
+
+        let routing_packet = meshtastic::protobufs::Routing {
+            variant: Some(meshtastic::protobufs::routing::Variant::RouteRequest(
+                route_discovery,
+            )),
+        };
+
+        let payload = routing_packet.encode_to_vec();
+
+        // Create mesh packet for traceroute
+        let mesh_packet = meshtastic::protobufs::MeshPacket {
+            payload_variant: Some(meshtastic::protobufs::mesh_packet::PayloadVariant::Decoded(
+                meshtastic::protobufs::Data {
+                    portnum: meshtastic::protobufs::PortNum::TracerouteApp as i32,
+                    payload,
+                    want_response: true,
+                    dest: 0,
+                    source: 0,
+                    request_id,
+                    reply_id: 0,
+                    emoji: 0,
+                    bitfield: Some(0),
+                },
+            )),
+            from: 0,
+            to: destination,
+            id: request_id,
+            rx_time: 0,
+            rx_snr: 0.0,
+            hop_limit: 7,
+            want_ack: false,
+            priority: meshtastic::protobufs::mesh_packet::Priority::Reliable as i32,
+            rx_rssi: 0,
+            via_mqtt: false,
+            hop_start: 7,
+            ..Default::default()
+        };
+
+        // Send the traceroute packet
+        let api = self.get_api()?;
+        api.send_to_radio_packet(Some(
+            meshtastic::protobufs::to_radio::PayloadVariant::Packet(mesh_packet),
+        ))
+        .await?;
+
+        debug!(
+            "Sent traceroute to {:08x} with request ID {}",
+            destination, request_id
+        );
+
+        // Wait for route response with timeout
+        let timeout = tokio::time::timeout(Duration::from_secs(timeout_secs), rx).await;
+
+        // Clean up the waiter if timeout occurred
+        if timeout.is_err() {
+            let mut waiters = self.route_waiters.lock().await;
+            waiters.remove(&request_id);
+            debug!("Traceroute timeout for request {}", request_id);
+            return Ok(Vec::new());
+        }
+
+        // Return the route hops
+        Ok(timeout.unwrap().unwrap_or_else(|_| Vec::new()))
     }
 
     pub async fn send_text_with_ack(
@@ -273,6 +369,7 @@ async fn process_from_radio_packet(
     from_radio: meshtastic::protobufs::FromRadio,
     device_state: Arc<Mutex<DeviceState>>,
     ack_waiters: Arc<Mutex<HashMap<u32, oneshot::Sender<bool>>>>,
+    route_waiters: Arc<Mutex<HashMap<u32, oneshot::Sender<Vec<crate::mesh::RouteHop>>>>>,
 ) -> Result<()> {
     let payload_variant = match from_radio.payload_variant {
         Some(variant) => variant,
@@ -335,7 +432,7 @@ async fn process_from_radio_packet(
         }
 
         meshtastic::protobufs::from_radio::PayloadVariant::Packet(mesh_packet) => {
-            process_mesh_packet(mesh_packet, device_state, ack_waiters).await?;
+            process_mesh_packet(mesh_packet, device_state, ack_waiters, route_waiters).await?;
         }
 
         _ => {
@@ -350,6 +447,7 @@ async fn process_mesh_packet(
     mesh_packet: meshtastic::protobufs::MeshPacket,
     device_state: Arc<Mutex<DeviceState>>,
     ack_waiters: Arc<Mutex<HashMap<u32, oneshot::Sender<bool>>>>,
+    route_waiters: Arc<Mutex<HashMap<u32, oneshot::Sender<Vec<crate::mesh::RouteHop>>>>>,
 ) -> Result<()> {
     let payload_variant = match mesh_packet.payload_variant {
         Some(variant) => variant,
@@ -505,7 +603,7 @@ async fn process_mesh_packet(
         }
 
         meshtastic::protobufs::PortNum::RoutingApp => {
-            // Handle routing packets (including ACKs)
+            // Handle routing packets (including ACKs and route replies)
             if let Ok(routing) =
                 meshtastic::protobufs::Routing::decode(packet_data.payload.as_slice())
             {
@@ -513,10 +611,54 @@ async fn process_mesh_packet(
                     match variant {
                         meshtastic::protobufs::routing::Variant::RouteReply(route) => {
                             debug!("Received route reply with {} hops", route.route.len());
-                            // TODO: Store route information for traceroute functionality
+
+                            // Check if this is a response to a traceroute request
+                            if packet_data.request_id != 0 {
+                                let mut waiters = route_waiters.lock().await;
+                                if let Some(sender) = waiters.remove(&packet_data.request_id) {
+                                    // Convert route to RouteHop structure
+                                    let mut hops = Vec::new();
+                                    for (idx, node_num) in route.route.iter().enumerate() {
+                                        // Look up node info from state
+                                        let state = device_state.lock().await;
+                                        let node_name = state
+                                            .nodes
+                                            .get(node_num)
+                                            .map(|n| n.user.long_name.clone())
+                                            .unwrap_or_else(|| {
+                                                format!("Unknown ({:08x})", node_num)
+                                            });
+
+                                        hops.push(crate::mesh::RouteHop {
+                                            node_id: *node_num,
+                                            node_name,
+                                            hop_number: idx as u32,
+                                            snr: None,  // Route replies don't include SNR
+                                            rssi: None, // Route replies don't include RSSI
+                                        });
+                                    }
+
+                                    let _ = sender.send(hops);
+                                    debug!(
+                                        "Sent route reply for request {}",
+                                        packet_data.request_id
+                                    );
+                                }
+                            }
                         }
                         meshtastic::protobufs::routing::Variant::ErrorReason(reason) => {
                             debug!("Routing error: {:?}", reason);
+                            // If this is an error for a traceroute request, send empty result
+                            if packet_data.request_id != 0 {
+                                let mut waiters = route_waiters.lock().await;
+                                if let Some(sender) = waiters.remove(&packet_data.request_id) {
+                                    let _ = sender.send(Vec::new());
+                                    debug!(
+                                        "Route request {} failed: {:?}",
+                                        packet_data.request_id, reason
+                                    );
+                                }
+                            }
                         }
                         _ => {}
                     }

@@ -1,7 +1,6 @@
 use crate::connection::ConnectionManager;
 use crate::state::NodeInfo;
 use anyhow::Result;
-use meshtastic::{protobufs, Message};
 use serde::Serialize;
 use serde_json::json;
 use tracing::debug;
@@ -106,53 +105,20 @@ pub async fn traceroute(
     connection: &mut ConnectionManager,
     destination: u32,
 ) -> Result<Vec<RouteHop>> {
-    let api = connection.get_api()?;
+    // Use the ConnectionManager's traceroute method which handles response waiting
+    let hops = connection.send_traceroute(destination, 10).await?;
 
-    // Create traceroute request using RouteDiscovery packet
-    let route_discovery = protobufs::RouteDiscovery {
-        route: Vec::new(), // Will be filled by the mesh
-        ..Default::default()
-    };
+    if hops.is_empty() {
+        debug!("No route found to destination {:08x}", destination);
+    } else {
+        debug!(
+            "Found route to {:08x} with {} hops",
+            destination,
+            hops.len()
+        );
+    }
 
-    // Encode the RouteDiscovery message
-    let payload = route_discovery.encode_to_vec();
-
-    // Create mesh packet with TracerouteApp portnum
-    let mesh_packet = protobufs::MeshPacket {
-        payload_variant: Some(protobufs::mesh_packet::PayloadVariant::Decoded(
-            protobufs::Data {
-                portnum: protobufs::PortNum::TracerouteApp as i32,
-                payload,
-                want_response: true,
-                ..Default::default()
-            },
-        )),
-        from: 0,
-        to: destination,
-        id: 0,
-        rx_time: 0,
-        rx_snr: 0.0,
-        hop_limit: 7, // Default max hops
-        want_ack: true,
-        priority: protobufs::mesh_packet::Priority::Default as i32,
-        rx_rssi: 0,
-        via_mqtt: false,
-        hop_start: 7,
-        ..Default::default()
-    };
-
-    // Send the traceroute packet
-    api.send_to_radio_packet(Some(protobufs::to_radio::PayloadVariant::Packet(
-        mesh_packet,
-    )))
-    .await?;
-
-    // Wait for response (simplified - in reality we'd listen for the response packet)
-    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-
-    // For now, return a placeholder result
-    // In a real implementation, we'd process the RouteDiscovery response
-    Ok(Vec::new())
+    Ok(hops)
 }
 
 /// List neighboring nodes (direct connections)
