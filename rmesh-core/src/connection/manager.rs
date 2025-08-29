@@ -647,11 +647,17 @@ async fn process_mesh_packet(
                                     });
                                 }
 
-                                let _ = sender.send(hops);
-                                debug!(
-                                    "Sent route reply for request {request_id}",
-                                    request_id = packet_data.request_id
-                                );
+                                if sender.send(hops).is_err() {
+                                    debug!(
+                                        "Route reply receiver dropped for request {request_id}",
+                                        request_id = packet_data.request_id
+                                    );
+                                } else {
+                                    debug!(
+                                        "Sent route reply for request {request_id}",
+                                        request_id = packet_data.request_id
+                                    );
+                                }
                             }
                         }
                     }
@@ -661,11 +667,17 @@ async fn process_mesh_packet(
                         if packet_data.request_id != 0 {
                             let mut waiters = route_waiters.lock().await;
                             if let Some(sender) = waiters.remove(&packet_data.request_id) {
-                                let _ = sender.send(Vec::new());
-                                debug!(
-                                    "Route request {request_id} failed: {reason:?}",
-                                    request_id = packet_data.request_id
-                                );
+                                if sender.send(Vec::new()).is_err() {
+                                    debug!(
+                                        "Route error receiver dropped for request {request_id}",
+                                        request_id = packet_data.request_id
+                                    );
+                                } else {
+                                    debug!(
+                                        "Route request {request_id} failed: {reason:?}",
+                                        request_id = packet_data.request_id
+                                    );
+                                }
                             }
                         }
                     }
@@ -679,11 +691,17 @@ async fn process_mesh_packet(
             if packet_data.request_id != 0 {
                 let mut waiters = ack_waiters.lock().await;
                 if let Some(sender) = waiters.remove(&packet_data.request_id) {
-                    let _ = sender.send(true);
-                    debug!(
-                        "Received ACK for packet {request_id}",
-                        request_id = packet_data.request_id
-                    );
+                    if sender.send(true).is_err() {
+                        debug!(
+                            "ACK receiver dropped for packet {request_id}",
+                            request_id = packet_data.request_id
+                        );
+                    } else {
+                        debug!(
+                            "Received ACK for packet {request_id}",
+                            request_id = packet_data.request_id
+                        );
+                    }
                 }
             }
         }
@@ -708,11 +726,17 @@ async fn process_mesh_packet(
         {
             let mut waiters = ack_waiters.lock().await;
             if let Some(sender) = waiters.remove(&data.request_id) {
-                let _ = sender.send(true);
-                debug!(
-                    "Received implicit ACK for packet {request_id}",
-                    request_id = data.request_id
-                );
+                if sender.send(true).is_err() {
+                    debug!(
+                        "Implicit ACK receiver dropped for packet {request_id}",
+                        request_id = data.request_id
+                    );
+                } else {
+                    debug!(
+                        "Received implicit ACK for packet {request_id}",
+                        request_id = data.request_id
+                    );
+                }
             }
         }
     }

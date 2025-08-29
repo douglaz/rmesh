@@ -64,8 +64,11 @@ pub async fn receive_messages(
     })
     .await;
 
-    // Ignore timeout error - it's expected
-    let _ = result;
+    // Handle timeout result
+    match result {
+        Ok(_) => debug!("Message reception completed before timeout"),
+        Err(_) => debug!("Message reception timeout after {timeout_secs} seconds"),
+    }
 
     Ok(messages)
 }

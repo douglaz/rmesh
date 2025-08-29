@@ -1,6 +1,6 @@
 use crate::connection::ConnectionManager;
 use crate::state::Position;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use meshtastic::Message as ProstMessage;
 use meshtastic::packet::{PacketDestination, PacketReceiver};
 use meshtastic::protobufs;
@@ -43,7 +43,7 @@ pub async fn set_position(
         altitude,
         time: std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
+            .context("Failed to get system time")?
             .as_secs() as u32,
         ..Default::default()
     };
@@ -84,8 +84,11 @@ pub async fn track_positions(
     })
     .await;
 
-    // Ignore timeout error - it's expected
-    let _ = result;
+    // Handle timeout result
+    match result {
+        Ok(_) => debug!("Position tracking completed before timeout"),
+        Err(_) => debug!("Position tracking timeout after {timeout_secs} seconds"),
+    }
 
     Ok(positions)
 }
