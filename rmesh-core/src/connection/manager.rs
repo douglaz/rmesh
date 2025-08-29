@@ -291,18 +291,21 @@ impl ConnectionManager {
         );
 
         // Wait for route response with timeout
-        let timeout = tokio::time::timeout(Duration::from_secs(timeout_secs), rx).await;
-
-        // Clean up the waiter if timeout occurred
-        if timeout.is_err() {
-            let mut waiters = self.route_waiters.lock().await;
-            waiters.remove(&request_id);
-            debug!("Traceroute timeout for request {}", request_id);
-            return Ok(Vec::new());
+        match tokio::time::timeout(Duration::from_secs(timeout_secs), rx).await {
+            Ok(Ok(hops)) => Ok(hops),
+            Ok(Err(_)) => {
+                // Channel was closed without receiving data
+                debug!("Traceroute channel closed for request {request_id}");
+                Ok(Vec::new())
+            }
+            Err(_) => {
+                // Timeout occurred, clean up the waiter
+                let mut waiters = self.route_waiters.lock().await;
+                waiters.remove(&request_id);
+                debug!("Traceroute timeout for request {request_id}");
+                Ok(Vec::new())
+            }
         }
-
-        // Return the route hops
-        Ok(timeout.unwrap().unwrap_or_else(|_| Vec::new()))
     }
 
     pub async fn send_text_with_ack(
@@ -350,18 +353,21 @@ impl ConnectionManager {
         debug!("Sent message with ID {} and ACK request", packet_id);
 
         // Wait for ACK with timeout
-        let timeout = tokio::time::timeout(Duration::from_secs(timeout_secs), rx).await;
-
-        // Clean up the waiter if timeout occurred
-        if timeout.is_err() {
-            let mut waiters = self.ack_waiters.lock().await;
-            waiters.remove(&packet_id);
-            debug!("ACK timeout for packet {}", packet_id);
-            return Ok(false);
+        match tokio::time::timeout(Duration::from_secs(timeout_secs), rx).await {
+            Ok(Ok(ack)) => Ok(ack),
+            Ok(Err(_)) => {
+                // Channel was closed without receiving ACK
+                debug!("ACK channel closed for packet {packet_id}");
+                Ok(false)
+            }
+            Err(_) => {
+                // Timeout occurred, clean up the waiter
+                let mut waiters = self.ack_waiters.lock().await;
+                waiters.remove(&packet_id);
+                debug!("ACK timeout for packet {packet_id}");
+                Ok(false)
+            }
         }
-
-        // Return whether ACK was received
-        Ok(timeout.unwrap().unwrap_or(false))
     }
 }
 
