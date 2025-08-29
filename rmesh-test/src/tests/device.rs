@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use serde_json::{Value, json};
 
 use crate::define_test;
@@ -32,9 +32,7 @@ pub fn get_tests() -> Vec<Test> {
 async fn test_device_info(ctx: &mut TestContext<'_>) -> Result<Value> {
     let state = ctx.connection.get_device_state().await;
 
-    let my_info = state
-        .my_node_info
-        .ok_or_else(|| anyhow::anyhow!("No device info available"))?;
+    let my_info = state.my_node_info.context("No device info available")?;
 
     Ok(json!({
         "node_id": my_info.node_id,
@@ -58,8 +56,7 @@ async fn test_firmware_version(ctx: &mut TestContext<'_>) -> Result<Value> {
         None
     };
 
-    let firmware =
-        firmware_version.ok_or_else(|| anyhow::anyhow!("Could not determine firmware version"))?;
+    let firmware = firmware_version.context("Could not determine firmware version")?;
 
     // Check if firmware is recent enough (2.x or higher)
     let parts: Vec<&str> = firmware.split('.').collect();
@@ -96,8 +93,7 @@ async fn test_hardware_model(ctx: &mut TestContext<'_>) -> Result<Value> {
             }
         });
 
-    let model =
-        hardware_model.ok_or_else(|| anyhow::anyhow!("Could not determine hardware model"))?;
+    let model = hardware_model.context("Could not determine hardware model")?;
 
     // List of known good models
     let known_models = [
@@ -126,7 +122,7 @@ async fn test_node_config(ctx: &mut TestContext<'_>) -> Result<Value> {
 
     let my_info = state
         .my_node_info
-        .ok_or_else(|| anyhow::anyhow!("No node configuration available"))?;
+        .context("No node configuration available")?;
 
     // Validate node ID format
     if my_info.node_id.is_empty() {

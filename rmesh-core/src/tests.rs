@@ -2,7 +2,7 @@
 mod state_tests {
     use crate::state::{DeviceConfig, DeviceMetrics, PositionConfig, TelemetryData};
     use crate::state::{DeviceState, MyNodeInfo, NodeInfo, Position, TextMessage, User};
-    use anyhow::Result;
+    use anyhow::{Context, Result};
 
     #[test]
     fn test_device_state_creation() -> Result<()> {
@@ -35,10 +35,7 @@ mod state_tests {
         state.update_node(0x12345678, node.clone());
         assert_eq!(state.nodes.len(), 1);
 
-        let stored_node = state
-            .nodes
-            .get(&0x12345678)
-            .ok_or_else(|| anyhow::anyhow!("Node not found"))?;
+        let stored_node = state.nodes.get(&0x12345678).context("Node not found")?;
         assert_eq!(stored_node.id, "test123");
         Ok(())
     }
@@ -62,7 +59,7 @@ mod state_tests {
         let stored_position = state
             .positions
             .get(&0x12345678)
-            .ok_or_else(|| anyhow::anyhow!("Position not found"))?;
+            .context("Position not found")?;
         assert_eq!(stored_position.latitude, 37.7749);
         Ok(())
     }
@@ -103,9 +100,7 @@ mod state_tests {
         state.set_my_node_info(my_info.clone());
         assert!(state.my_node_info.is_some());
 
-        let stored_info = state
-            .my_node_info
-            .ok_or_else(|| anyhow::anyhow!("My node info not found"))?;
+        let stored_info = state.my_node_info.context("My node info not found")?;
         assert_eq!(stored_info.node_num, 0x12345678);
         Ok(())
     }
@@ -131,7 +126,7 @@ mod state_tests {
         let found = state.get_node_by_id("test123");
         assert!(found.is_some());
 
-        let found_node = found.ok_or_else(|| anyhow::anyhow!("Node not found by ID"))?;
+        let found_node = found.context("Node not found by ID")?;
         assert_eq!(found_node.user.long_name, "Test User");
 
         let not_found = state.get_node_by_id("nonexistent");
@@ -162,11 +157,11 @@ mod state_tests {
         let stored_telemetry = state
             .telemetry
             .get(&0x12345678)
-            .ok_or_else(|| anyhow::anyhow!("Telemetry not found"))?;
+            .context("Telemetry not found")?;
         let device_metrics = stored_telemetry
             .device_metrics
             .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Device metrics not found"))?;
+            .context("Device metrics not found")?;
         assert_eq!(device_metrics.battery_level, Some(75));
         Ok(())
     }
@@ -191,7 +186,7 @@ mod state_tests {
         let config = state
             .device_config
             .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Device config not found"))?;
+            .context("Device config not found")?;
         assert_eq!(config.role, "Router");
 
         let position_config = PositionConfig {
@@ -208,7 +203,7 @@ mod state_tests {
         let pos_config = state
             .position_config
             .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Position config not found"))?;
+            .context("Position config not found")?;
         assert!(pos_config.gps_enabled);
         Ok(())
     }

@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use serde_json::{Value, json};
 
 use crate::define_test;
@@ -43,7 +43,7 @@ async fn test_primary_channel(ctx: &mut TestContext<'_>) -> Result<Value> {
     let primary = channels
         .iter()
         .find(|c| c.role == "Primary")
-        .ok_or_else(|| anyhow::anyhow!("No primary channel found"))?;
+        .context("No primary channel found")?;
 
     Ok(json!({
         "has_primary": true,
