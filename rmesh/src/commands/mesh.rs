@@ -37,8 +37,8 @@ pub async fn handle_mesh(
                     // Print nodes table
                     if let Some(nodes) = topology.get("nodes").and_then(|n| n.as_array()) {
                         println!(
-                            "\n{}",
-                            format!("Network Nodes ({total} total):", total = nodes.len())
+                            "\n{title}",
+                            title = format!("Network Nodes ({total} total):", total = nodes.len())
                                 .bold()
                                 .green()
                         );
@@ -106,8 +106,8 @@ pub async fn handle_mesh(
                         && !edges.is_empty()
                     {
                         println!(
-                            "\n{}",
-                            format!("Direct Connections ({count}):", count = edges.len())
+                            "\n{title}",
+                            title = format!("Direct Connections ({count}):", count = edges.len())
                                 .bold()
                                 .blue()
                         );
@@ -122,11 +122,11 @@ pub async fn handle_mesh(
                                 let snr = obj.get("snr").and_then(|v| v.as_f64());
                                 let rssi = obj.get("rssi").and_then(|v| v.as_i64());
 
-                                print!("  {} → {}", from.yellow(), to.yellow());
+                                print!("  {from} → {to}", from = from.yellow(), to = to.yellow());
                                 if let Some(s) = snr {
                                     print!(" (SNR: {:.1} dB", s);
                                     if let Some(r) = rssi {
-                                        print!(", RSSI: {} dBm", r);
+                                        print!(", RSSI: {r} dBm");
                                     }
                                     print!(")");
                                 }
@@ -146,8 +146,8 @@ pub async fn handle_mesh(
 
             if hops.is_empty() {
                 println!(
-                    "{}",
-                    "No route found or traceroute not yet fully implemented".yellow()
+                    "{msg}",
+                    msg = "No route found or traceroute not yet fully implemented".yellow()
                 );
                 return Ok(());
             }
@@ -181,7 +181,7 @@ pub async fn handle_mesh(
                             ),
                             Cell::new(
                                 hop.rssi
-                                    .map(|r| format!("{} dBm", r))
+                                    .map(|r| format!("{r} dBm"))
                                     .unwrap_or_else(|| "N/A".to_string()),
                             ),
                         ]);

@@ -16,14 +16,14 @@ pub async fn handle_channel(
         }
 
         ChannelCommands::Add { name, psk } => {
-            print_success(&format!("Adding channel '{}' (not yet implemented)", name));
+            print_success(&format!("Adding channel '{name}' (not yet implemented)"));
             if psk.is_some() {
                 print_success("PSK will be set");
             }
         }
 
         ChannelCommands::Delete { index } => {
-            print_success(&format!("Deleting channel {} (not yet implemented)", index));
+            print_success(&format!("Deleting channel {index} (not yet implemented)"));
         }
 
         ChannelCommands::Set {
@@ -34,20 +34,19 @@ pub async fn handle_channel(
             downlink,
         } => {
             print_success(&format!(
-                "Configuring channel {} (not yet implemented)",
-                index
+                "Configuring channel {index} (not yet implemented)"
             ));
             if let Some(n) = name {
-                print_success(&format!("  Name: {}", n));
+                print_success(&format!("  Name: {n}"));
             }
             if psk.is_some() {
                 print_success("  PSK will be updated");
             }
             if let Some(u) = uplink {
-                print_success(&format!("  Uplink: {}", u));
+                print_success(&format!("  Uplink: {u}"));
             }
             if let Some(d) = downlink {
-                print_success(&format!("  Downlink: {}", d));
+                print_success(&format!("  Downlink: {d}"));
             }
         }
     }

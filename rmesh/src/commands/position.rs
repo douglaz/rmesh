@@ -35,7 +35,7 @@ pub async fn handle_position(
                         if let Some(alt) = pos.altitude {
                             table.add_row(vec![
                                 Cell::new("Altitude"),
-                                Cell::new(format!("{} m", alt)),
+                                Cell::new(format!("{alt} m")),
                             ]);
                         }
                         if let Some(time) = &pos.time {
@@ -99,7 +99,7 @@ pub async fn handle_position(
                                 Cell::new(format!("{:.6}", pos.longitude)),
                                 Cell::new(
                                     pos.altitude
-                                        .map(|a| format!("{} m", a))
+                                        .map(|a| format!("{a} m"))
                                         .unwrap_or_else(|| "N/A".to_string()),
                                 ),
                                 Cell::new(pos.time.unwrap_or_else(|| "Unknown".to_string())),

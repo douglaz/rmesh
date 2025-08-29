@@ -35,7 +35,7 @@ pub async fn send_text_message(
     )
     .await?;
 
-    debug!("Text message sent to {:?} on channel {}", dest, channel);
+    debug!("Text message sent to {dest:?} on channel {channel}");
     Ok(())
 }
 

@@ -61,10 +61,7 @@ pub async fn set_position(
     )
     .await?;
 
-    debug!(
-        "Position set to {}, {}, alt: {:?}",
-        latitude, longitude, altitude
-    );
+    debug!("Position set to {latitude}, {longitude}, alt: {altitude:?}");
     Ok(())
 }
 

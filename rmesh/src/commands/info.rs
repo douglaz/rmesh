@@ -267,7 +267,7 @@ pub async fn handle_info(
                             data_type = "Device".to_string();
                             battery = device
                                 .battery_level
-                                .map(|b| format!("{}%", b))
+                                .map(|b| format!("{b}%"))
                                 .unwrap_or_else(|| "N/A".to_string());
                             voltage = device
                                 .voltage
@@ -279,7 +279,7 @@ pub async fn handle_info(
                             data_type = if data_type == "None" {
                                 "Environment".to_string()
                             } else {
-                                format!("{}, Environment", data_type)
+                                format!("{data_type}, Environment")
                             };
                             temp = env
                                 .temperature

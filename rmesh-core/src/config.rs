@@ -29,7 +29,7 @@ pub async fn get_config_value(
         "display" => protobufs::admin_message::ConfigType::DisplayConfig,
         "lora" => protobufs::admin_message::ConfigType::LoraConfig,
         "bluetooth" => protobufs::admin_message::ConfigType::BluetoothConfig,
-        _ => bail!("Unknown config category: {}", category),
+        _ => bail!("Unknown config category: {category}"),
     };
 
     // Create admin message for config request
@@ -87,7 +87,7 @@ pub async fn get_config_value(
                     "node_info_broadcast_secs" => json!(config.node_info_broadcast_secs),
                     "tzdef" => json!(config.tzdef),
                     "disable_triple_click" => json!(config.disable_triple_click),
-                    _ => bail!("Unknown device config field: {}", field),
+                    _ => bail!("Unknown device config field: {field}"),
                 }
             } else {
                 json!(null)
@@ -103,7 +103,7 @@ pub async fn get_config_value(
                     "fixed_position" => json!(config.fixed_position),
                     "gps_enabled" => json!(config.gps_enabled),
                     "gps_mode" => json!(config.gps_mode),
-                    _ => bail!("Unknown position config field: {}", field),
+                    _ => bail!("Unknown position config field: {field}"),
                 }
             } else {
                 json!(null)
@@ -124,7 +124,7 @@ pub async fn get_config_value(
                     "tx_power" => json!(config.tx_power),
                     "channel_num" => json!(config.channel_num),
                     "ignore_mqtt" => json!(config.ignore_mqtt),
-                    _ => bail!("Unknown lora config field: {}", field),
+                    _ => bail!("Unknown lora config field: {field}"),
                 }
             } else {
                 json!(null)
@@ -177,7 +177,7 @@ pub async fn set_config_value(
                         session_passkey: Vec::new(),
                     }
                 }
-                _ => bail!("Unknown lora field: {}", field),
+                _ => bail!("Unknown lora field: {field}"),
             }
         }
         "device" => {
@@ -200,10 +200,10 @@ pub async fn set_config_value(
                         session_passkey: Vec::new(),
                     }
                 }
-                _ => bail!("Unknown device field: {}", field),
+                _ => bail!("Unknown device field: {field}"),
             }
         }
-        _ => bail!("Config category '{}' not yet implemented", category),
+        _ => bail!("Config category '{category}' not yet implemented"),
     };
 
     // Create mesh packet
@@ -372,7 +372,7 @@ fn parse_region(value: &str) -> Result<protobufs::config::lo_ra_config::RegionCo
         "MY_919" => RegionCode::My919,
         "SG_923" => RegionCode::Sg923,
         "LORA_24" => RegionCode::Lora24,
-        _ => bail!("Unknown region: {}", value),
+        _ => bail!("Unknown region: {value}"),
     };
 
     Ok(region)
@@ -393,7 +393,7 @@ fn parse_role(value: &str) -> Result<protobufs::config::device_config::Role> {
         "CLIENT_HIDDEN" => Role::ClientHidden,
         "LOST_AND_FOUND" => Role::LostAndFound,
         "TAK_TRACKER" => Role::TakTracker,
-        _ => bail!("Unknown role: {}", value),
+        _ => bail!("Unknown role: {value}"),
     };
 
     Ok(role)

@@ -94,14 +94,14 @@ impl ConnectionManager {
         } else if let Some(port) = &self.port {
             if port.contains(':') || port.starts_with("192.") || port.starts_with("10.") {
                 // TCP connection
-                info!("Connecting via TCP to {}", port);
+                info!("Connecting via TCP to {port}");
                 let stream = utils::stream::build_tcp_stream(port.clone())
                     .await
                     .context("Failed to connect via TCP")?;
                 stream_api.connect(stream).await
             } else {
                 // Serial connection
-                info!("Connecting via serial port {}", port);
+                info!("Connecting via serial port {port}");
                 let stream = utils::stream::build_serial_stream(
                     port.clone(),
                     None, // Use default baud rate
@@ -122,7 +122,7 @@ impl ConnectionManager {
             }
 
             let port_name = ports[0].clone();
-            info!("Using auto-detected port: {}", port_name);
+            info!("Using auto-detected port: {port_name}");
 
             let stream = utils::stream::build_serial_stream(
                 port_name, None, // Use default baud rate
@@ -169,7 +169,7 @@ impl ConnectionManager {
                 )
                 .await
                 {
-                    warn!("Error processing packet: {}", e);
+                    warn!("Error processing packet: {e}");
                 }
             }
 
@@ -285,10 +285,7 @@ impl ConnectionManager {
         ))
         .await?;
 
-        debug!(
-            "Sent traceroute to {:08x} with request ID {}",
-            destination, request_id
-        );
+        debug!("Sent traceroute to {destination:08x} with request ID {request_id}");
 
         // Wait for route response with timeout
         match tokio::time::timeout(Duration::from_secs(timeout_secs), rx).await {
@@ -350,7 +347,7 @@ impl ConnectionManager {
         )
         .await?;
 
-        debug!("Sent message with ID {} and ACK request", packet_id);
+        debug!("Sent message with ID {packet_id} and ACK request");
 
         // Wait for ACK with timeout
         match tokio::time::timeout(Duration::from_secs(timeout_secs), rx).await {
@@ -414,7 +411,7 @@ async fn process_from_radio_packet(
                     rssi: Some(0), // NodeInfo doesn't have RSSI
                 },
             );
-            debug!("Updated node info for {}", node_info.num);
+            debug!("Updated node info for {num}", num = node_info.num);
         }
 
         meshtastic::protobufs::from_radio::PayloadVariant::Channel(channel) => {
@@ -434,7 +431,7 @@ async fn process_from_radio_packet(
                     .unwrap_or(false),
                 settings: channel.settings,
             });
-            debug!("Updated channel {}", channel.index);
+            debug!("Updated channel {index}", index = channel.index);
         }
 
         meshtastic::protobufs::from_radio::PayloadVariant::Packet(mesh_packet) => {
@@ -614,7 +611,10 @@ async fn process_mesh_packet(
             {
                 match variant {
                     meshtastic::protobufs::routing::Variant::RouteReply(route) => {
-                        debug!("Received route reply with {} hops", route.route.len());
+                        debug!(
+                            "Received route reply with {hops} hops",
+                            hops = route.route.len()
+                        );
 
                         // Check if this is a response to a traceroute request
                         if packet_data.request_id != 0 {
@@ -641,7 +641,10 @@ async fn process_mesh_packet(
                                 }
 
                                 let _ = sender.send(hops);
-                                debug!("Sent route reply for request {}", packet_data.request_id);
+                                debug!(
+                                    "Sent route reply for request {request_id}",
+                                    request_id = packet_data.request_id
+                                );
                             }
                         }
                     }
@@ -653,8 +656,8 @@ async fn process_mesh_packet(
                             if let Some(sender) = waiters.remove(&packet_data.request_id) {
                                 let _ = sender.send(Vec::new());
                                 debug!(
-                                    "Route request {} failed: {:?}",
-                                    packet_data.request_id, reason
+                                    "Route request {request_id} failed: {reason:?}",
+                                    request_id = packet_data.request_id
                                 );
                             }
                         }
@@ -668,7 +671,10 @@ async fn process_mesh_packet(
                 let mut waiters = ack_waiters.lock().await;
                 if let Some(sender) = waiters.remove(&packet_data.request_id) {
                     let _ = sender.send(true);
-                    debug!("Received ACK for packet {}", packet_data.request_id);
+                    debug!(
+                        "Received ACK for packet {request_id}",
+                        request_id = packet_data.request_id
+                    );
                 }
             }
         }
@@ -690,7 +696,10 @@ async fn process_mesh_packet(
             let mut waiters = ack_waiters.lock().await;
             if let Some(sender) = waiters.remove(&data.request_id) {
                 let _ = sender.send(true);
-                debug!("Received implicit ACK for packet {}", data.request_id);
+                debug!(
+                    "Received implicit ACK for packet {request_id}",
+                    request_id = data.request_id
+                );
             }
         }
     }

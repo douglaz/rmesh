@@ -112,9 +112,8 @@ pub async fn traceroute(
         debug!("No route found to destination {:08x}", destination);
     } else {
         debug!(
-            "Found route to {:08x} with {} hops",
-            destination,
-            hops.len()
+            "Found route to {destination:08x} with {hops} hops",
+            hops = hops.len()
         );
     }
 
@@ -244,9 +243,9 @@ pub async fn request_node_info(
     // For now, we rely on passive node discovery from received packets
 
     debug!(
-        "Node info request for {} - passive discovery only",
-        node_num
-            .map(|n| format!("{:08x}", n))
+        "Node info request for {target} - passive discovery only",
+        target = node_num
+            .map(|n| format!("{n:08x}"))
             .unwrap_or_else(|| "all nodes".to_string())
     );
 
