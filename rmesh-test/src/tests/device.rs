@@ -130,8 +130,8 @@ async fn test_node_config(ctx: &mut TestContext<'_>) -> Result<Value> {
     // Check if node ID is valid hex
     anyhow::ensure!(
         my_info.node_id.len() == 8 && my_info.node_id.chars().all(|c| c.is_ascii_hexdigit()),
-        "Invalid node ID format: {}",
-        my_info.node_id
+        "Invalid node ID format: {node_id}",
+        node_id = my_info.node_id
     );
 
     Ok(json!({

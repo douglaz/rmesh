@@ -104,8 +104,7 @@ async fn test_response_time(ctx: &mut TestContext<'_>) -> Result<Value> {
 
     anyhow::ensure!(
         avg_response_time <= 1000,
-        "Response time too high: {}ms average",
-        avg_response_time
+        "Response time too high: {avg_response_time}ms average"
     );
 
     Ok(json!({
