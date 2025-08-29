@@ -25,11 +25,11 @@ pub async fn handle_mesh(
                     if let Some(my_node) = topology.get("my_node") {
                         println!("\n{title}", title = "My Node:".bold().cyan());
                         if let Some(node_obj) = my_node.as_object() {
-                            if let Some(id) = node_obj.get("node_id") {
-                                println!("  ID: {id}", id = id.as_str().unwrap_or("unknown"));
+                            if let Some(id) = node_obj.get("node_id").and_then(|v| v.as_str()) {
+                                println!("  ID: {id}");
                             }
-                            if let Some(num) = node_obj.get("node_num") {
-                                println!("  Number: {num:08x}", num = num.as_u64().unwrap_or(0));
+                            if let Some(num) = node_obj.get("node_num").and_then(|v| v.as_u64()) {
+                                println!("  Number: {num:08x}");
                             }
                         }
                     }

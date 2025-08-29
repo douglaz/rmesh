@@ -67,7 +67,7 @@ pub async fn handle_info(
                 .position_config
                 .as_ref()
                 .map(|cfg| cfg.gps_enabled)
-                .unwrap_or(false);
+                .unwrap_or_default();
 
             // Count actual channels
             let num_channels = state.channels.len();

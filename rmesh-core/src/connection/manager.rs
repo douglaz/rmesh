@@ -428,7 +428,7 @@ async fn process_from_radio_packet(
                     .settings
                     .as_ref()
                     .map(|s| !s.psk.is_empty())
-                    .unwrap_or(false),
+                    .unwrap_or_default(),
                 settings: channel.settings,
             });
             debug!("Updated channel {index}", index = channel.index);
