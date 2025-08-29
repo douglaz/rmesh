@@ -99,10 +99,10 @@ fn process_packet_for_message(
     };
 
     // Apply from_node filter if specified
-    if let Some(filter) = from_node_filter {
-        if mesh_packet.from != filter {
-            return None;
-        }
+    if let Some(filter) = from_node_filter
+        && mesh_packet.from != filter
+    {
+        return None;
     }
 
     // Check if it's a decoded packet

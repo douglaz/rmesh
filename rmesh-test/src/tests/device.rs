@@ -63,15 +63,14 @@ async fn test_firmware_version(ctx: &mut TestContext<'_>) -> Result<Value> {
 
     // Check if firmware is recent enough (2.x or higher)
     let parts: Vec<&str> = firmware.split('.').collect();
-    if let Some(major_str) = parts.first() {
-        if let Ok(major) = major_str.parse::<u32>() {
-            if major < 2 {
-                anyhow::bail!(
-                    "Firmware version {} is too old. Please update to 2.x or higher",
-                    firmware
-                );
-            }
-        }
+    if let Some(major_str) = parts.first()
+        && let Ok(major) = major_str.parse::<u32>()
+        && major < 2
+    {
+        anyhow::bail!(
+            "Firmware version {} is too old. Please update to 2.x or higher",
+            firmware
+        );
     }
 
     Ok(json!({

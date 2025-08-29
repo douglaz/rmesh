@@ -241,13 +241,13 @@ async fn auto_detect_device() -> Result<String> {
     ] {
         for i in 0..10 {
             let port = format!("{base}{i}");
-            if std::path::Path::new(&port).exists() {
-                if let Ok(metadata) = std::fs::metadata(&port) {
-                    use std::os::unix::fs::FileTypeExt;
-                    if metadata.file_type().is_char_device() {
-                        eprintln!("{} Found device at {}", "✓".green(), port.bold());
-                        return Ok(port);
-                    }
+            if std::path::Path::new(&port).exists()
+                && let Ok(metadata) = std::fs::metadata(&port)
+            {
+                use std::os::unix::fs::FileTypeExt;
+                if metadata.file_type().is_char_device() {
+                    eprintln!("{} Found device at {}", "✓".green(), port.bold());
+                    return Ok(port);
                 }
             }
         }

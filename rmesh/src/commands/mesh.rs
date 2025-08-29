@@ -102,35 +102,35 @@ pub async fn handle_mesh(
                     }
 
                     // Print network edges if available
-                    if let Some(edges) = topology.get("edges").and_then(|e| e.as_array()) {
-                        if !edges.is_empty() {
-                            println!(
-                                "\n{}",
-                                format!("Direct Connections ({count}):", count = edges.len())
-                                    .bold()
-                                    .blue()
-                            );
-                            for edge in edges {
-                                if let Some(obj) = edge.as_object() {
-                                    let from = obj
-                                        .get("from")
-                                        .and_then(|v| v.as_str())
-                                        .unwrap_or("unknown");
-                                    let to =
-                                        obj.get("to").and_then(|v| v.as_str()).unwrap_or("unknown");
-                                    let snr = obj.get("snr").and_then(|v| v.as_f64());
-                                    let rssi = obj.get("rssi").and_then(|v| v.as_i64());
+                    if let Some(edges) = topology.get("edges").and_then(|e| e.as_array())
+                        && !edges.is_empty()
+                    {
+                        println!(
+                            "\n{}",
+                            format!("Direct Connections ({count}):", count = edges.len())
+                                .bold()
+                                .blue()
+                        );
+                        for edge in edges {
+                            if let Some(obj) = edge.as_object() {
+                                let from = obj
+                                    .get("from")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("unknown");
+                                let to =
+                                    obj.get("to").and_then(|v| v.as_str()).unwrap_or("unknown");
+                                let snr = obj.get("snr").and_then(|v| v.as_f64());
+                                let rssi = obj.get("rssi").and_then(|v| v.as_i64());
 
-                                    print!("  {} → {}", from.yellow(), to.yellow());
-                                    if let Some(s) = snr {
-                                        print!(" (SNR: {:.1} dB", s);
-                                        if let Some(r) = rssi {
-                                            print!(", RSSI: {} dBm", r);
-                                        }
-                                        print!(")");
+                                print!("  {} → {}", from.yellow(), to.yellow());
+                                if let Some(s) = snr {
+                                    print!(" (SNR: {:.1} dB", s);
+                                    if let Some(r) = rssi {
+                                        print!(", RSSI: {} dBm", r);
                                     }
-                                    println!();
+                                    print!(")");
                                 }
+                                println!();
                             }
                         }
                     }

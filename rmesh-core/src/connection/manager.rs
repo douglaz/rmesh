@@ -592,13 +592,11 @@ async fn process_mesh_packet(
         meshtastic::protobufs::PortNum::AdminApp => {
             if let Ok(admin_msg) =
                 meshtastic::protobufs::AdminMessage::decode(packet_data.payload.as_slice())
-            {
-                if let Some(
+                && let Some(
                     meshtastic::protobufs::admin_message::PayloadVariant::GetConfigResponse(config),
                 ) = admin_msg.payload_variant
-                {
-                    process_config_response(config, device_state).await?;
-                }
+            {
+                process_config_response(config, device_state).await?;
             }
         }
 
@@ -606,62 +604,56 @@ async fn process_mesh_packet(
             // Handle routing packets (including ACKs and route replies)
             if let Ok(routing) =
                 meshtastic::protobufs::Routing::decode(packet_data.payload.as_slice())
+                && let Some(variant) = routing.variant
             {
-                if let Some(variant) = routing.variant {
-                    match variant {
-                        meshtastic::protobufs::routing::Variant::RouteReply(route) => {
-                            debug!("Received route reply with {} hops", route.route.len());
+                match variant {
+                    meshtastic::protobufs::routing::Variant::RouteReply(route) => {
+                        debug!("Received route reply with {} hops", route.route.len());
 
-                            // Check if this is a response to a traceroute request
-                            if packet_data.request_id != 0 {
-                                let mut waiters = route_waiters.lock().await;
-                                if let Some(sender) = waiters.remove(&packet_data.request_id) {
-                                    // Convert route to RouteHop structure
-                                    let mut hops = Vec::new();
-                                    for (idx, node_num) in route.route.iter().enumerate() {
-                                        // Look up node info from state
-                                        let state = device_state.lock().await;
-                                        let node_name = state
-                                            .nodes
-                                            .get(node_num)
-                                            .map(|n| n.user.long_name.clone())
-                                            .unwrap_or_else(|| {
-                                                format!("Unknown ({:08x})", node_num)
-                                            });
+                        // Check if this is a response to a traceroute request
+                        if packet_data.request_id != 0 {
+                            let mut waiters = route_waiters.lock().await;
+                            if let Some(sender) = waiters.remove(&packet_data.request_id) {
+                                // Convert route to RouteHop structure
+                                let mut hops = Vec::new();
+                                for (idx, node_num) in route.route.iter().enumerate() {
+                                    // Look up node info from state
+                                    let state = device_state.lock().await;
+                                    let node_name = state
+                                        .nodes
+                                        .get(node_num)
+                                        .map(|n| n.user.long_name.clone())
+                                        .unwrap_or_else(|| format!("Unknown ({:08x})", node_num));
 
-                                        hops.push(crate::mesh::RouteHop {
-                                            node_id: *node_num,
-                                            node_name,
-                                            hop_number: idx as u32,
-                                            snr: None,  // Route replies don't include SNR
-                                            rssi: None, // Route replies don't include RSSI
-                                        });
-                                    }
-
-                                    let _ = sender.send(hops);
-                                    debug!(
-                                        "Sent route reply for request {}",
-                                        packet_data.request_id
-                                    );
+                                    hops.push(crate::mesh::RouteHop {
+                                        node_id: *node_num,
+                                        node_name,
+                                        hop_number: idx as u32,
+                                        snr: None,  // Route replies don't include SNR
+                                        rssi: None, // Route replies don't include RSSI
+                                    });
                                 }
+
+                                let _ = sender.send(hops);
+                                debug!("Sent route reply for request {}", packet_data.request_id);
                             }
                         }
-                        meshtastic::protobufs::routing::Variant::ErrorReason(reason) => {
-                            debug!("Routing error: {:?}", reason);
-                            // If this is an error for a traceroute request, send empty result
-                            if packet_data.request_id != 0 {
-                                let mut waiters = route_waiters.lock().await;
-                                if let Some(sender) = waiters.remove(&packet_data.request_id) {
-                                    let _ = sender.send(Vec::new());
-                                    debug!(
-                                        "Route request {} failed: {:?}",
-                                        packet_data.request_id, reason
-                                    );
-                                }
-                            }
-                        }
-                        _ => {}
                     }
+                    meshtastic::protobufs::routing::Variant::ErrorReason(reason) => {
+                        debug!("Routing error: {:?}", reason);
+                        // If this is an error for a traceroute request, send empty result
+                        if packet_data.request_id != 0 {
+                            let mut waiters = route_waiters.lock().await;
+                            if let Some(sender) = waiters.remove(&packet_data.request_id) {
+                                let _ = sender.send(Vec::new());
+                                debug!(
+                                    "Route request {} failed: {:?}",
+                                    packet_data.request_id, reason
+                                );
+                            }
+                        }
+                    }
+                    _ => {}
                 }
             }
 
@@ -687,13 +679,12 @@ async fn process_mesh_packet(
         // Check if this might be an implicit ACK
         if let meshtastic::protobufs::mesh_packet::PayloadVariant::Decoded(ref data) =
             payload_variant
+            && data.request_id != 0
         {
-            if data.request_id != 0 {
-                let mut waiters = ack_waiters.lock().await;
-                if let Some(sender) = waiters.remove(&data.request_id) {
-                    let _ = sender.send(true);
-                    debug!("Received implicit ACK for packet {}", data.request_id);
-                }
+            let mut waiters = ack_waiters.lock().await;
+            if let Some(sender) = waiters.remove(&data.request_id) {
+                let _ = sender.send(true);
+                debug!("Received implicit ACK for packet {}", data.request_id);
             }
         }
     }
