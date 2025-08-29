@@ -71,7 +71,7 @@ impl TestRunner {
                 pb.set_style(
                     ProgressStyle::default_bar()
                         .template("{spinner:.green} [{bar:40.cyan/blue}] {pos}/{len} {msg}")
-                        .unwrap()
+                        .unwrap_or_else(|_| ProgressStyle::default_bar())
                         .progress_chars("#>-"),
                 );
             }

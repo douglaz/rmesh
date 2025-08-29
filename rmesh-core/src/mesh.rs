@@ -135,17 +135,14 @@ pub async fn get_neighbors(connection: &ConnectionManager) -> Result<Vec<NodeInf
         .filter(|node| {
             // Consider it a neighbor if we have signal strength info and heard recently
             (node.snr.is_some() || node.rssi.is_some())
-                && node
-                    .last_heard
-                    .map(|h| {
-                        let now = std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap_or_default()
-                            .as_secs();
-                        // Use saturating subtraction to avoid overflow if timestamp is in the future
-                        now.saturating_sub(h) < 3600 // Heard within last hour
-                    })
-                    .unwrap_or(false)
+                && node.last_heard.is_some_and(|h| {
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs();
+                    // Use saturating subtraction to avoid overflow if timestamp is in the future
+                    now.saturating_sub(h) < 3600 // Heard within last hour
+                })
         })
         .cloned()
         .collect();
@@ -182,9 +179,9 @@ impl MeshHealth {
             Self::Isolated
         } else if neighbors == 1 {
             Self::Weak
-        } else if average_snr.map(|s| s > 5.0).unwrap_or(false) {
+        } else if average_snr.is_some_and(|s| s > 5.0) {
             Self::Excellent
-        } else if average_snr.map(|s| s > 0.0).unwrap_or(false) {
+        } else if average_snr.is_some_and(|s| s > 0.0) {
             Self::Good
         } else {
             Self::Fair
@@ -216,11 +213,7 @@ pub async fn get_network_stats(connection: &ConnectionManager) -> Result<Network
     let active_nodes = state
         .nodes
         .values()
-        .filter(|n| {
-            n.last_heard
-                .map(|h| now.saturating_sub(h) < 3600)
-                .unwrap_or(false)
-        })
+        .filter(|n| n.last_heard.is_some_and(|h| now.saturating_sub(h) < 3600))
         .count();
 
     // Direct neighbors

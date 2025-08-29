@@ -339,7 +339,7 @@ pub async fn list_config(connection: &ConnectionManager) -> Result<serde_json::V
     }
 
     // Return the complete configuration
-    if config.as_object().map(|o| o.is_empty()).unwrap_or(true) {
+    if config.as_object().is_none_or(|o| o.is_empty()) {
         Ok(json!({
             "status": "no_config",
             "message": "No configuration data available. Device may not be fully synchronized.",
