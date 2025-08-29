@@ -384,7 +384,7 @@ async fn process_from_radio_packet(
             let mut state = device_state.lock().await;
             state.set_my_node_info(MyNodeInfo {
                 node_num: my_info.my_node_num,
-                node_id: format!("{:08x}", my_info.my_node_num),
+                node_id: format!("{num:08x}", num = my_info.my_node_num),
                 reboot_count: my_info.reboot_count,
                 min_app_version: my_info.min_app_version,
                 device_id: hex::encode(my_info.device_id),
@@ -398,7 +398,7 @@ async fn process_from_radio_packet(
             state.update_node(
                 node_info.num,
                 NodeInfo {
-                    id: format!("{:08x}", node_info.num),
+                    id: format!("{num:08x}", num = node_info.num),
                     num: node_info.num,
                     user: User {
                         id: user.id.clone(),
@@ -471,9 +471,9 @@ async fn process_mesh_packet(
             let mut state = device_state.lock().await;
 
             state.add_message(TextMessage {
-                from: format!("{:08x}", mesh_packet.from),
+                from: format!("{from:08x}", from = mesh_packet.from),
                 from_node: mesh_packet.from,
-                to: format!("{:08x}", mesh_packet.to),
+                to: format!("{to:08x}", to = mesh_packet.to),
                 to_node: mesh_packet.to,
                 channel: mesh_packet.channel,
                 text,
@@ -485,7 +485,10 @@ async fn process_mesh_packet(
                 rssi: Some(mesh_packet.rx_rssi),
                 acknowledged: false,
             });
-            debug!("Received text message from {:08x}", mesh_packet.from);
+            debug!(
+                "Received text message from {from:08x}",
+                from = mesh_packet.from
+            );
         }
 
         meshtastic::protobufs::PortNum::PositionApp => {
@@ -500,7 +503,7 @@ async fn process_mesh_packet(
                     state.update_position(
                         mesh_packet.from,
                         Position {
-                            node_id: format!("{:08x}", mesh_packet.from),
+                            node_id: format!("{from:08x}", from = mesh_packet.from),
                             node_num: mesh_packet.from,
                             latitude: lat as f64 / 1e7,
                             longitude: lon as f64 / 1e7,
@@ -517,7 +520,7 @@ async fn process_mesh_packet(
                                 .as_secs(),
                         },
                     );
-                    debug!("Updated position for {:08x}", mesh_packet.from);
+                    debug!("Updated position for {from:08x}", from = mesh_packet.from);
                 }
             }
         }
@@ -588,7 +591,7 @@ async fn process_mesh_packet(
                 }
 
                 state.update_telemetry(mesh_packet.from, telemetry_data);
-                debug!("Updated telemetry for {:08x}", mesh_packet.from);
+                debug!("Updated telemetry for {from:08x}", from = mesh_packet.from);
             }
         }
 
@@ -629,7 +632,9 @@ async fn process_mesh_packet(
                                         .nodes
                                         .get(node_num)
                                         .map(|n| n.user.long_name.clone())
-                                        .unwrap_or_else(|| format!("Unknown ({:08x})", node_num));
+                                        .unwrap_or_else(|| {
+                                            format!("Unknown ({num:08x})", num = node_num)
+                                        });
 
                                     hops.push(crate::mesh::RouteHop {
                                         node_id: *node_num,

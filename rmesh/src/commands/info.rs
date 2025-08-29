@@ -139,7 +139,7 @@ pub async fn handle_info(
                             Cell::new(&node.user.long_name),
                             Cell::new(
                                 node.snr
-                                    .map(|s| format!("{:.1}", s))
+                                    .map(|s| format!("{snr:.1}", snr = s))
                                     .unwrap_or_else(|| "N/A".to_string()),
                             ),
                             Cell::new(
@@ -216,9 +216,9 @@ pub async fn handle_info(
 
                     for (node_num, position) in state.positions {
                         table.add_row(vec![
-                            Cell::new(format!("{:08x}", node_num)),
-                            Cell::new(format!("{:.6}", position.latitude)),
-                            Cell::new(format!("{:.6}", position.longitude)),
+                            Cell::new(format!("{num:08x}", num = node_num)),
+                            Cell::new(format!("{lat:.6}", lat = position.latitude)),
+                            Cell::new(format!("{lon:.6}", lon = position.longitude)),
                             Cell::new(
                                 position
                                     .altitude
@@ -271,7 +271,7 @@ pub async fn handle_info(
                                 .unwrap_or_else(|| "N/A".to_string());
                             voltage = device
                                 .voltage
-                                .map(|v| format!("{:.2}V", v))
+                                .map(|v| format!("{voltage:.2}V", voltage = v))
                                 .unwrap_or_else(|| "N/A".to_string());
                         }
 
@@ -283,16 +283,16 @@ pub async fn handle_info(
                             };
                             temp = env
                                 .temperature
-                                .map(|t| format!("{:.1}°C", t))
+                                .map(|t| format!("{temp:.1}°C", temp = t))
                                 .unwrap_or_else(|| "N/A".to_string());
                             humidity = env
                                 .relative_humidity
-                                .map(|h| format!("{:.1}%", h))
+                                .map(|h| format!("{humidity:.1}%", humidity = h))
                                 .unwrap_or_else(|| "N/A".to_string());
                         }
 
                         table.add_row(vec![
-                            Cell::new(format!("{:08x}", node_num)),
+                            Cell::new(format!("{num:08x}", num = node_num)),
                             Cell::new(data_type),
                             Cell::new(battery),
                             Cell::new(voltage),

@@ -26,11 +26,11 @@ pub async fn handle_position(
                         table.add_row(vec![Cell::new("Node Number"), Cell::new(pos.node_num)]);
                         table.add_row(vec![
                             Cell::new("Latitude"),
-                            Cell::new(format!("{:.6}", pos.latitude)),
+                            Cell::new(format!("{lat:.6}", lat = pos.latitude)),
                         ]);
                         table.add_row(vec![
                             Cell::new("Longitude"),
-                            Cell::new(format!("{:.6}", pos.longitude)),
+                            Cell::new(format!("{lon:.6}", lon = pos.longitude)),
                         ]);
                         if let Some(alt) = pos.altitude {
                             table.add_row(vec![
@@ -95,8 +95,8 @@ pub async fn handle_position(
                         for pos in positions {
                             table.add_row(vec![
                                 Cell::new(&pos.node_id),
-                                Cell::new(format!("{:.6}", pos.latitude)),
-                                Cell::new(format!("{:.6}", pos.longitude)),
+                                Cell::new(format!("{lat:.6}", lat = pos.latitude)),
+                                Cell::new(format!("{lon:.6}", lon = pos.longitude)),
                                 Cell::new(
                                     pos.altitude
                                         .map(|a| format!("{a} m"))

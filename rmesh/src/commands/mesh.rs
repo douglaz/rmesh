@@ -124,7 +124,7 @@ pub async fn handle_mesh(
 
                                 print!("  {from} → {to}", from = from.yellow(), to = to.yellow());
                                 if let Some(s) = snr {
-                                    print!(" (SNR: {:.1} dB", s);
+                                    print!(" (SNR: {snr:.1} dB", snr = s);
                                     if let Some(r) = rssi {
                                         print!(", RSSI: {r} dBm");
                                     }
@@ -230,7 +230,7 @@ pub async fn handle_mesh(
                             Cell::new(
                                 neighbor
                                     .snr
-                                    .map(|s| format!("{:.1}", s))
+                                    .map(|s| format!("{snr:.1}", snr = s))
                                     .unwrap_or_else(|| "N/A".to_string()),
                             ),
                             Cell::new(

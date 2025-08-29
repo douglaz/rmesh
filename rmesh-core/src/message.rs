@@ -120,9 +120,9 @@ fn process_packet_for_message(
     let text = String::from_utf8_lossy(&data.payload).to_string();
 
     Some(ReceivedMessage {
-        from: format!("{:08x}", mesh_packet.from),
+        from: format!("{from:08x}", from = mesh_packet.from),
         from_node: mesh_packet.from,
-        to: format!("{:08x}", mesh_packet.to),
+        to: format!("{to:08x}", to = mesh_packet.to),
         to_node: mesh_packet.to,
         channel: mesh_packet.channel,
         text,

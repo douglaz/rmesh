@@ -109,7 +109,10 @@ pub async fn traceroute(
     let hops = connection.send_traceroute(destination, 10).await?;
 
     if hops.is_empty() {
-        debug!("No route found to destination {:08x}", destination);
+        debug!(
+            "No route found to destination {dest:08x}",
+            dest = destination
+        );
     } else {
         debug!(
             "Found route to {destination:08x} with {hops} hops",

@@ -123,7 +123,7 @@ fn process_packet_for_position(
     let (lat, lon) = (position_proto.latitude_i?, position_proto.longitude_i?);
 
     Some(Position {
-        node_id: format!("{:08x}", mesh_packet.from),
+        node_id: format!("{from:08x}", from = mesh_packet.from),
         node_num: mesh_packet.from,
         latitude: lat as f64 / 1e7,
         longitude: lon as f64 / 1e7,

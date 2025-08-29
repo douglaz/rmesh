@@ -63,7 +63,7 @@ async fn test_connection_stability(ctx: &mut TestContext<'_>) -> Result<Value> {
     Ok(json!({
         "successful_pings": successful_pings,
         "failed_pings": failed_pings,
-        "success_rate": format!("{:.1}%", success_rate),
+        "success_rate": format!("{rate:.1}%", rate = success_rate),
         "test_duration_ms": start.elapsed().as_millis(),
     }))
 }

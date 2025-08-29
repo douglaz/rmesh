@@ -238,8 +238,8 @@ impl TestReport {
 
         println!("\n{section}", section = "Connection Quality:".bold());
         println!(
-            "  Packet Success Rate: {:.1}%",
-            (1.0 - self.connection_quality.error_rate) * 100.0
+            "  Packet Success Rate: {rate:.1}%",
+            rate = (1.0 - self.connection_quality.error_rate) * 100.0
         );
         println!(
             "  Connection Stability: {stability}",
