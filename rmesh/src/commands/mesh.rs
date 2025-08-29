@@ -278,17 +278,15 @@ pub async fn handle_mesh(
                         if let Some(rssi) = stats.average_rssi {
                             println!("  Average RSSI: {rssi} dBm");
                         }
-                        println!(
-                            "  Mesh Health: {health}",
-                            health = match stats.mesh_health.as_str() {
-                                "Excellent" => stats.mesh_health.green(),
-                                "Good" => stats.mesh_health.green(),
-                                "Fair" => stats.mesh_health.yellow(),
-                                "Weak" => stats.mesh_health.red(),
-                                "Isolated" => stats.mesh_health.red().bold(),
-                                _ => stats.mesh_health.normal(),
-                            }
-                        );
+                        use rmesh_core::mesh::MeshHealth;
+                        let health_str = stats.mesh_health.to_string();
+                        let colored_health = match stats.mesh_health {
+                            MeshHealth::Excellent | MeshHealth::Good => health_str.green(),
+                            MeshHealth::Fair => health_str.yellow(),
+                            MeshHealth::Weak => health_str.red(),
+                            MeshHealth::Isolated => health_str.red().bold(),
+                        };
+                        println!("  Mesh Health: {colored_health}");
                     }
                 }
             }

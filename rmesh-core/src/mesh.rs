@@ -3,6 +3,7 @@ use crate::state::NodeInfo;
 use anyhow::Result;
 use serde::Serialize;
 use serde_json::json;
+use strum::{Display, EnumString};
 use tracing::debug;
 
 /// Represents a node in the mesh network
@@ -158,6 +159,39 @@ pub async fn get_nodes(connection: &ConnectionManager) -> Result<Vec<NodeInfo>> 
     Ok(state.nodes.values().cloned().collect())
 }
 
+/// Mesh network health status
+#[derive(Debug, Clone, Copy, Serialize, Display, EnumString, PartialEq, Eq)]
+#[strum(serialize_all = "title_case")]
+pub enum MeshHealth {
+    /// No neighbors detected - node is isolated
+    Isolated,
+    /// Only one neighbor - weak connectivity
+    Weak,
+    /// Multiple neighbors but poor signal quality
+    Fair,
+    /// Multiple neighbors with good signal quality (SNR > 0)
+    Good,
+    /// Multiple neighbors with excellent signal quality (SNR > 5)
+    Excellent,
+}
+
+impl MeshHealth {
+    /// Determine health from network metrics
+    pub fn from_metrics(neighbors: usize, average_snr: Option<f32>) -> Self {
+        if neighbors == 0 {
+            Self::Isolated
+        } else if neighbors == 1 {
+            Self::Weak
+        } else if average_snr.map(|s| s > 5.0).unwrap_or(false) {
+            Self::Excellent
+        } else if average_snr.map(|s| s > 0.0).unwrap_or(false) {
+            Self::Good
+        } else {
+            Self::Fair
+        }
+    }
+}
+
 /// Calculate network statistics
 #[derive(Debug, Clone, Serialize)]
 pub struct NetworkStats {
@@ -166,7 +200,7 @@ pub struct NetworkStats {
     pub neighbors: usize,
     pub average_snr: Option<f32>,
     pub average_rssi: Option<i32>,
-    pub mesh_health: String,
+    pub mesh_health: MeshHealth,
 }
 
 pub async fn get_network_stats(connection: &ConnectionManager) -> Result<NetworkStats> {
@@ -213,18 +247,7 @@ pub async fn get_network_stats(connection: &ConnectionManager) -> Result<Network
     };
 
     // Determine mesh health based on metrics
-    let mesh_health = if neighbors == 0 {
-        "Isolated"
-    } else if neighbors == 1 {
-        "Weak"
-    } else if average_snr.map(|s| s > 5.0).unwrap_or(false) {
-        "Excellent"
-    } else if average_snr.map(|s| s > 0.0).unwrap_or(false) {
-        "Good"
-    } else {
-        "Fair"
-    }
-    .to_string();
+    let mesh_health = MeshHealth::from_metrics(neighbors, average_snr);
 
     Ok(NetworkStats {
         total_nodes,

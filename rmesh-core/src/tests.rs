@@ -211,7 +211,7 @@ mod state_tests {
 
 #[cfg(test)]
 mod mesh_tests {
-    use crate::mesh::{MeshNode, NetworkStats, RouteHop};
+    use crate::mesh::{MeshHealth, MeshNode, NetworkStats, RouteHop};
     use anyhow::Result;
 
     #[test]
@@ -222,12 +222,36 @@ mod mesh_tests {
             neighbors: 3,
             average_snr: Some(5.5),
             average_rssi: Some(-75),
-            mesh_health: "Good".to_string(),
+            mesh_health: MeshHealth::Good,
         };
 
         assert_eq!(stats.total_nodes, 10);
         assert_eq!(stats.active_nodes, 8);
-        assert_eq!(stats.mesh_health, "Good");
+        assert_eq!(stats.mesh_health, MeshHealth::Good);
+        Ok(())
+    }
+
+    #[test]
+    fn test_mesh_health_enum() -> Result<()> {
+        // Test from_metrics logic
+        assert_eq!(MeshHealth::from_metrics(0, None), MeshHealth::Isolated);
+        assert_eq!(MeshHealth::from_metrics(1, None), MeshHealth::Weak);
+        assert_eq!(MeshHealth::from_metrics(2, None), MeshHealth::Fair);
+        assert_eq!(MeshHealth::from_metrics(2, Some(-1.0)), MeshHealth::Fair);
+        assert_eq!(MeshHealth::from_metrics(2, Some(0.5)), MeshHealth::Good);
+        assert_eq!(MeshHealth::from_metrics(3, Some(2.0)), MeshHealth::Good);
+        assert_eq!(
+            MeshHealth::from_metrics(5, Some(6.0)),
+            MeshHealth::Excellent
+        );
+
+        // Test Display trait from strum
+        assert_eq!(MeshHealth::Isolated.to_string(), "Isolated");
+        assert_eq!(MeshHealth::Weak.to_string(), "Weak");
+        assert_eq!(MeshHealth::Fair.to_string(), "Fair");
+        assert_eq!(MeshHealth::Good.to_string(), "Good");
+        assert_eq!(MeshHealth::Excellent.to_string(), "Excellent");
+
         Ok(())
     }
 

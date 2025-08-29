@@ -38,3 +38,4 @@ comfy-table = "7.1"
 humantime = "2.1"
 chrono = { version = "0.4", features = ["serde"] }
 hex = "0.4"
+strum = { version = "0.26", features = ["derive"] }
