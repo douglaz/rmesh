@@ -482,7 +482,7 @@ async fn process_mesh_packet(
                 text,
                 time: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
+                    .unwrap_or_default()
                     .as_secs(),
                 snr: Some(mesh_packet.rx_snr),
                 rssi: Some(mesh_packet.rx_rssi),
@@ -516,7 +516,7 @@ async fn process_mesh_packet(
                             },
                             last_updated: std::time::SystemTime::now()
                                 .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap()
+                                .unwrap_or_default()
                                 .as_secs(),
                         },
                     );
@@ -753,11 +753,10 @@ async fn process_config_response(
                     wifi_psk: network_config.wifi_psk,
                     ntp_server: network_config.ntp_server,
                     eth_enabled: network_config.eth_enabled,
-                    ipv4_config: if network_config.ipv4_config.is_some() {
-                        Some(format!("{:?}", network_config.ipv4_config.unwrap()))
-                    } else {
-                        None
-                    },
+                    ipv4_config: network_config
+                        .ipv4_config
+                        .as_ref()
+                        .map(|config| format!("{config:?}")),
                 });
                 debug!("Updated network config");
             }

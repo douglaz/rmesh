@@ -81,7 +81,7 @@ pub async fn handle_mesh(
                                             .map(|h| {
                                                 let now = std::time::SystemTime::now()
                                                     .duration_since(std::time::UNIX_EPOCH)
-                                                    .unwrap()
+                                                    .unwrap_or_default()
                                                     .as_secs();
                                                 let ago = now.saturating_sub(h);
                                                 if ago < 60 {
@@ -244,7 +244,7 @@ pub async fn handle_mesh(
                                     .map(|h| {
                                         let now = std::time::SystemTime::now()
                                             .duration_since(std::time::UNIX_EPOCH)
-                                            .unwrap()
+                                            .unwrap_or_default()
                                             .as_secs();
                                         let ago = now.saturating_sub(h);
                                         if ago < 60 {
