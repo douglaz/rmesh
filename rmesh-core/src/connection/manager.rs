@@ -114,8 +114,12 @@ impl ConnectionManager {
                 // This helps the device wake up and resync its serial state machine
                 use tokio::io::AsyncWriteExt;
                 let wake_sequence = vec![0xc3; 32]; // START2 byte repeated
-                stream.stream.write_all(&wake_sequence).await.ok();
-                stream.stream.flush().await.ok();
+                if let Err(e) = stream.stream.write_all(&wake_sequence).await {
+                    debug!("Failed to send wake sequence: {e}");
+                }
+                if let Err(e) = stream.stream.flush().await {
+                    debug!("Failed to flush wake sequence: {e}");
+                }
 
                 // Add a brief delay for serial port stabilization
                 // This helps avoid initial sync errors with stale data
@@ -148,8 +152,12 @@ impl ConnectionManager {
             // This helps the device wake up and resync its serial state machine
             use tokio::io::AsyncWriteExt;
             let wake_sequence = vec![0xc3; 32]; // START2 byte repeated
-            stream.stream.write_all(&wake_sequence).await.ok();
-            stream.stream.flush().await.ok();
+            if let Err(e) = stream.stream.write_all(&wake_sequence).await {
+                debug!("Failed to send wake sequence: {e}");
+            }
+            if let Err(e) = stream.stream.flush().await {
+                debug!("Failed to flush wake sequence: {e}");
+            }
 
             // Add a brief delay for serial port stabilization
             // This helps avoid initial sync errors with stale data
