@@ -111,6 +111,48 @@ pub async fn handle_position(
                 }
             }
         }
+
+        PositionCommands::Request { node, timeout } => {
+            print_info(&format!("Requesting position from node {node:08x}..."));
+
+            // Use the core library function
+            let position =
+                rmesh_core::position::request_position(&mut connection, node, timeout).await?;
+
+            if let Some(pos) = position {
+                match format {
+                    OutputFormat::Json => print_output(&pos, format),
+                    OutputFormat::Table => {
+                        let mut table = create_table();
+                        table.set_header(vec![Cell::new("Property"), Cell::new("Value")]);
+                        table.add_row(vec![Cell::new("Node ID"), Cell::new(&pos.node_id)]);
+                        table.add_row(vec![Cell::new("Node Number"), Cell::new(pos.node_num)]);
+                        table.add_row(vec![
+                            Cell::new("Latitude"),
+                            Cell::new(format!("{lat:.6}", lat = pos.latitude)),
+                        ]);
+                        table.add_row(vec![
+                            Cell::new("Longitude"),
+                            Cell::new(format!("{lon:.6}", lon = pos.longitude)),
+                        ]);
+                        if let Some(alt) = pos.altitude {
+                            table.add_row(vec![
+                                Cell::new("Altitude"),
+                                Cell::new(format!("{alt} m")),
+                            ]);
+                        }
+                        if let Some(time) = &pos.time {
+                            table.add_row(vec![Cell::new("Time"), Cell::new(time)]);
+                        }
+                        println!("{table}");
+                    }
+                }
+            } else {
+                print_warning(&format!(
+                    "No position response received from node {node:08x} (timeout: {timeout}s)"
+                ));
+            }
+        }
     }
 
     Ok(())
