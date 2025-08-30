@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, bail, ensure};
-use meshtastic::Message as ProstMessage;
+use meshtastic::Message;
 use meshtastic::api::state::Configured;
 use meshtastic::api::{ConnectedStreamApi, StreamApi};
 use meshtastic::packet::{PacketReceiver, PacketRouter};
@@ -147,6 +147,12 @@ impl ConnectionManager {
 
         // Start packet processing
         self.start_packet_processing(packet_receiver).await;
+
+        // Request all configuration from the device
+        if let Err(e) = self.request_all_configs().await {
+            warn!("Failed to request device configuration: {e}");
+            // Continue anyway as this is not critical for connection
+        }
 
         info!("Connection established and configured successfully");
         Ok(())
@@ -306,6 +312,66 @@ impl ConnectionManager {
         }
     }
 
+    /// Request all configuration from the device
+    async fn request_all_configs(&mut self) -> Result<()> {
+        info!("Requesting device configuration...");
+
+        let api = self.get_api()?;
+
+        // List of config types to request
+        let config_types = [
+            meshtastic::protobufs::admin_message::ConfigType::DeviceConfig,
+            meshtastic::protobufs::admin_message::ConfigType::PositionConfig,
+            meshtastic::protobufs::admin_message::ConfigType::PowerConfig,
+            meshtastic::protobufs::admin_message::ConfigType::NetworkConfig,
+            meshtastic::protobufs::admin_message::ConfigType::DisplayConfig,
+            meshtastic::protobufs::admin_message::ConfigType::LoraConfig,
+            meshtastic::protobufs::admin_message::ConfigType::BluetoothConfig,
+        ];
+
+        for config_type in config_types {
+            debug!("Requesting config type: {config_type:?}");
+
+            // Create admin message for config request
+            let admin_msg = meshtastic::protobufs::AdminMessage {
+                payload_variant: Some(
+                    meshtastic::protobufs::admin_message::PayloadVariant::GetConfigRequest(
+                        config_type as i32,
+                    ),
+                ),
+                session_passkey: Vec::new(),
+            };
+
+            // Create mesh packet
+            let mesh_packet = meshtastic::protobufs::MeshPacket {
+                payload_variant: Some(meshtastic::protobufs::mesh_packet::PayloadVariant::Decoded(
+                    meshtastic::protobufs::Data {
+                        portnum: meshtastic::protobufs::PortNum::AdminApp as i32,
+                        payload: admin_msg.encode_to_vec(),
+                        ..Default::default()
+                    },
+                )),
+                to: 0, // Local destination
+                ..Default::default()
+            };
+
+            // Send config request
+            api.send_to_radio_packet(Some(
+                meshtastic::protobufs::to_radio::PayloadVariant::Packet(mesh_packet),
+            ))
+            .await?;
+
+            // Small delay between requests to avoid overwhelming the device
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+
+        // Give time for all config responses to be received and processed
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+
+        info!("Configuration requests sent");
+        Ok(())
+    }
+
     pub async fn send_text_with_ack(
         &mut self,
         text: String,
@@ -437,6 +503,15 @@ async fn process_from_radio_packet(
 
         meshtastic::protobufs::from_radio::PayloadVariant::Packet(mesh_packet) => {
             process_mesh_packet(mesh_packet, device_state, ack_waiters, route_waiters).await?;
+        }
+
+        meshtastic::protobufs::from_radio::PayloadVariant::Config(config) => {
+            debug!("Received Config packet during initial connection");
+            process_config_response(config, device_state).await?;
+        }
+
+        meshtastic::protobufs::from_radio::PayloadVariant::ConfigCompleteId(id) => {
+            info!("Config complete received with ID: {id}");
         }
 
         variant => {
@@ -599,13 +674,20 @@ async fn process_mesh_packet(
         }
 
         meshtastic::protobufs::PortNum::AdminApp => {
+            debug!("Received AdminApp packet");
             if let Ok(admin_msg) =
                 meshtastic::protobufs::AdminMessage::decode(packet_data.payload.as_slice())
-                && let Some(
+            {
+                debug!("Decoded admin message: {admin_msg:?}");
+                if let Some(
                     meshtastic::protobufs::admin_message::PayloadVariant::GetConfigResponse(config),
                 ) = admin_msg.payload_variant
-            {
-                process_config_response(config, device_state).await?;
+                {
+                    debug!("Processing config response");
+                    process_config_response(config, device_state).await?;
+                }
+            } else {
+                debug!("Failed to decode admin message");
             }
         }
 
