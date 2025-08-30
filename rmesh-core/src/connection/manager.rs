@@ -822,6 +822,32 @@ async fn process_config_response(
                 debug!("Updated display config");
             }
             meshtastic::protobufs::config::PayloadVariant::Lora(lora_config) => {
+                // Convert region enum to human-readable string
+                let region_str = match lora_config.region() {
+                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Unset => "Unset",
+                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Us => "US",
+                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Eu433 => "EU433",
+                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Eu868 => "EU868",
+                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Cn => "CN",
+                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Jp => "JP",
+                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Anz => "ANZ",
+                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Kr => "KR",
+                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Tw => "TW",
+                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Ru => "RU",
+                    meshtastic::protobufs::config::lo_ra_config::RegionCode::In => "IN",
+                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Nz865 => "NZ865",
+                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Th => "TH",
+                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Lora24 => "LORA24",
+                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Ua433 => "UA433",
+                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Ua868 => "UA868",
+                    meshtastic::protobufs::config::lo_ra_config::RegionCode::My433 => "MY433",
+                    meshtastic::protobufs::config::lo_ra_config::RegionCode::My919 => "MY919",
+                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Sg923 => "SG923",
+                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Ph433 => "PH433",
+                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Ph868 => "PH868",
+                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Ph915 => "PH915",
+                };
+
                 state.lora_config = Some(LoraConfig {
                     use_preset: lora_config.use_preset,
                     modem_preset: format!("{preset:?}", preset = lora_config.modem_preset()),
@@ -829,7 +855,7 @@ async fn process_config_response(
                     spread_factor: lora_config.spread_factor,
                     coding_rate: lora_config.coding_rate,
                     frequency_offset: lora_config.frequency_offset,
-                    region: format!("{region:?}", region = lora_config.region()),
+                    region: region_str.to_string(),
                     hop_limit: lora_config.hop_limit,
                     tx_enabled: lora_config.tx_enabled,
                     tx_power: lora_config.tx_power,
