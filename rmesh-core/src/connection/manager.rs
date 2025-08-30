@@ -102,13 +102,29 @@ impl ConnectionManager {
             } else {
                 // Serial connection
                 info!("Connecting via serial port {port}");
-                let stream = utils::stream::build_serial_stream(
+                let mut stream = utils::stream::build_serial_stream(
                     port.clone(),
                     None, // Use default baud rate
                     None, // Use default DTR
                     None, // Use default RTS
                 )
                 .context("Failed to connect via serial")?;
+
+                // Send wake sequence to force device resync (similar to Python implementation)
+                // This helps the device wake up and resync its serial state machine
+                use tokio::io::AsyncWriteExt;
+                let wake_sequence = vec![0xc3; 32]; // START2 byte repeated
+                if let Err(e) = stream.stream.write_all(&wake_sequence).await {
+                    debug!("Failed to send wake sequence: {e}");
+                }
+                if let Err(e) = stream.stream.flush().await {
+                    debug!("Failed to flush wake sequence: {e}");
+                }
+
+                // Add a brief delay for serial port stabilization
+                // This helps avoid initial sync errors with stale data
+                tokio::time::sleep(Duration::from_millis(100)).await;
+
                 stream_api.connect(stream).await
             }
         } else {
@@ -125,12 +141,28 @@ impl ConnectionManager {
             let port_name = ports[0].clone();
             info!("Using auto-detected port: {port_name}");
 
-            let stream = utils::stream::build_serial_stream(
+            let mut stream = utils::stream::build_serial_stream(
                 port_name, None, // Use default baud rate
                 None, // Use default DTR
                 None, // Use default RTS
             )
             .context("Failed to connect to auto-detected serial port")?;
+
+            // Send wake sequence to force device resync (similar to Python implementation)
+            // This helps the device wake up and resync its serial state machine
+            use tokio::io::AsyncWriteExt;
+            let wake_sequence = vec![0xc3; 32]; // START2 byte repeated
+            if let Err(e) = stream.stream.write_all(&wake_sequence).await {
+                debug!("Failed to send wake sequence: {e}");
+            }
+            if let Err(e) = stream.stream.flush().await {
+                debug!("Failed to flush wake sequence: {e}");
+            }
+
+            // Add a brief delay for serial port stabilization
+            // This helps avoid initial sync errors with stale data
+            tokio::time::sleep(Duration::from_millis(100)).await;
+
             stream_api.connect(stream).await
         };
 
@@ -186,6 +218,8 @@ impl ConnectionManager {
         self.packet_processor = Some(handle);
 
         // Give the processor a moment to start receiving initial packets
+        // This also serves as a connection stabilization period where initial
+        // sync errors are expected and can be safely ignored
         tokio::time::sleep(Duration::from_millis(500)).await;
     }
 

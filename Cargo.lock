@@ -833,7 +833,7 @@ checksum = "32a282da65faaf38286cf3be983213fcf1d2e2a58700e808f83f4ea9a4804bc0"
 [[package]]
 name = "meshtastic"
 version = "0.1.7"
-source = "git+https://github.com/meshtastic/rust.git?branch=main#d0421b5fea6038bbacb0cdfc1ac51e7b25df26f3"
+source = "git+https://github.com/douglaz/meshtastic-rust.git?branch=fix-serial-logging#9cf2d3d4266864edc0b9e750aa34cdf0a2a64a2b"
 dependencies = [
  "bluez-async",
  "btleplug",
