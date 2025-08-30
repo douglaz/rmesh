@@ -115,14 +115,16 @@ pub async fn handle_info(
             // Use the core library function
             let nodes = rmesh_core::mesh::get_nodes(&connection).await?;
 
-            if nodes.is_empty() {
-                println!("No nodes found in the mesh network");
-                return Ok(());
-            }
-
             match format {
-                OutputFormat::Json => print_output(&nodes, format),
+                OutputFormat::Json => {
+                    // Always output JSON, even if empty (will be [])
+                    print_output(&nodes, format);
+                }
                 OutputFormat::Table => {
+                    if nodes.is_empty() {
+                        println!("No nodes found in the mesh network");
+                        return Ok(());
+                    }
                     let mut table = create_table();
                     table.set_header(vec![
                         Cell::new("ID"),
@@ -197,14 +199,17 @@ pub async fn handle_info(
             // Get position data from device state
             let state = connection.get_device_state().await;
 
-            if state.positions.is_empty() {
-                println!("No position data available");
-                return Ok(());
-            }
-
             match format {
-                OutputFormat::Json => print_output(&state.positions, format),
+                OutputFormat::Json => {
+                    // Always output JSON, even if empty (will be {})
+                    print_output(&state.positions, format);
+                }
                 OutputFormat::Table => {
+                    if state.positions.is_empty() {
+                        println!("No position data available");
+                        return Ok(());
+                    }
+
                     let mut table = create_table();
                     table.set_header(vec![
                         Cell::new("Node ID"),
@@ -238,14 +243,16 @@ pub async fn handle_info(
             // Get telemetry data from device state
             let state = connection.get_device_state().await;
 
-            if state.telemetry.is_empty() {
-                println!("No telemetry data available");
-                return Ok(());
-            }
-
             match format {
-                OutputFormat::Json => print_output(&state.telemetry, format),
+                OutputFormat::Json => {
+                    // Always output JSON, even if empty (will be {})
+                    print_output(&state.telemetry, format);
+                }
                 OutputFormat::Table => {
+                    if state.telemetry.is_empty() {
+                        println!("No telemetry data available");
+                        return Ok(());
+                    }
                     let mut table = create_table();
                     table.set_header(vec![
                         Cell::new("Node ID"),
