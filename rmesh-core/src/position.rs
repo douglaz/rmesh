@@ -5,8 +5,9 @@ use meshtastic::Message;
 use meshtastic::packet::{PacketDestination, PacketReceiver};
 use meshtastic::protobufs;
 use meshtastic::types::EncodedMeshPacketData;
+use std::collections::HashMap;
 use tokio::time::{Duration, timeout};
-use tracing::debug;
+use tracing::{debug, info};
 
 /// Get position for a specific node
 pub async fn get_position(
@@ -268,4 +269,143 @@ impl meshtastic::packet::PacketRouter<(), std::convert::Infallible> for SimplePa
     fn source_node_id(&self) -> NodeId {
         0u32.into() // Default node ID for simple router
     }
+}
+
+/// Collect positions from all nodes for a specified duration
+pub async fn collect_positions(
+    connection: &mut ConnectionManager,
+    wait_seconds: u64,
+) -> Result<HashMap<u32, Position>> {
+    info!("Collecting position broadcasts for {wait_seconds} seconds...");
+
+    // Record initial state
+    let initial_state = connection.get_device_state().await;
+    let initial_count = initial_state.positions.len();
+
+    // Store positions we've seen during collection
+    let mut collected_positions = HashMap::new();
+
+    // Poll for new positions during the wait period
+    let start_time = std::time::Instant::now();
+    let timeout_duration = Duration::from_secs(wait_seconds);
+    let mut last_check_time = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    while start_time.elapsed() < timeout_duration {
+        // Get current state
+        let state = connection.get_device_state().await;
+
+        // Check for new or updated positions
+        for (node_num, position) in &state.positions {
+            // Check if this position is new or updated since we started
+            if position.last_updated > last_check_time {
+                debug!("Received position update from node {node_num:08x}");
+                collected_positions.insert(*node_num, position.clone());
+            }
+        }
+
+        // Update check time
+        last_check_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        // Wait a bit before checking again
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+
+    // Get final state and merge all positions
+    let final_state = connection.get_device_state().await;
+    let mut all_positions = final_state.positions.clone();
+
+    // Add any positions we collected that might have been missed
+    for (node_num, position) in collected_positions {
+        all_positions.insert(node_num, position);
+    }
+
+    let new_count = all_positions.len() - initial_count;
+    if new_count > 0 {
+        info!(
+            "Collected {} new position update(s) from {} total nodes",
+            new_count,
+            all_positions.len()
+        );
+    } else {
+        info!(
+            "No new position updates received. Total positions: {}",
+            all_positions.len()
+        );
+    }
+
+    Ok(all_positions)
+}
+
+/// Request positions from all known nodes
+pub async fn request_all_positions(
+    connection: &mut ConnectionManager,
+) -> Result<HashMap<u32, Position>> {
+    // Get list of all known nodes
+    let state = connection.get_device_state().await;
+    let node_nums: Vec<u32> = state.nodes.keys().copied().collect();
+
+    if node_nums.is_empty() {
+        debug!("No nodes found to request positions from");
+        return Ok(HashMap::new());
+    }
+
+    info!("Requesting positions from {} nodes...", node_nums.len());
+
+    // Send position requests to all nodes
+    for node_num in &node_nums {
+        // Create an empty position packet to request position
+        let position = protobufs::Position::default();
+
+        // Create a simple packet router
+        let mut packet_router = SimplePacketRouter;
+
+        // Get API and send position request with wantResponse flag
+        let api = connection.get_api()?;
+
+        // Encode position to bytes
+        let byte_data: EncodedMeshPacketData = position.encode_to_vec().into();
+
+        // Send mesh packet directly with want_response set to true
+        if let Err(e) = api
+            .send_mesh_packet(
+                &mut packet_router,
+                byte_data,
+                protobufs::PortNum::PositionApp,
+                PacketDestination::Node((*node_num).into()),
+                0.into(), // primary channel
+                false,    // want_ack
+                true,     // want_response
+                false,    // echo_response
+                None,     // reply_id
+                None,     // emoji
+            )
+            .await
+        {
+            debug!("Failed to send position request to {node_num:08x}: {e}");
+        } else {
+            debug!("Sent position request to {node_num:08x}");
+        }
+
+        // Small delay between requests to avoid overwhelming the mesh
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+
+    // Wait for responses (give 10 seconds for all nodes to respond)
+    info!("Waiting for position responses...");
+    tokio::time::sleep(Duration::from_secs(10)).await;
+
+    // Return all collected positions from device state
+    let final_state = connection.get_device_state().await;
+
+    info!(
+        "Received positions from {} nodes",
+        final_state.positions.len()
+    );
+    Ok(final_state.positions)
 }

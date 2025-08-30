@@ -107,7 +107,15 @@ pub enum InfoCommands {
     /// Display node list
     Nodes,
     /// Display position information
-    Position,
+    Position {
+        /// Wait for position broadcasts (in seconds)
+        #[arg(short = 'w', long)]
+        wait: Option<u64>,
+
+        /// Request positions from all known nodes
+        #[arg(short = 'r', long = "request-all")]
+        request_all: bool,
+    },
     /// Display device metrics
     Metrics,
     /// Display telemetry data
