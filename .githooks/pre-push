@@ -1,133 +1,133 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "🔍 Running pre-push checks..."
-echo ""
+echo "🔍 Running pre-push checks..." >&2
+echo "" >&2
 
 # Check if we're in a nix environment
 if command -v nix >/dev/null 2>&1 && [ -f "flake.nix" ]; then
     # Check formatting
-    echo "📝 Checking code formatting..."
+    echo "📝 Checking code formatting..." >&2
     if ! nix develop -c cargo fmt --check 2>/dev/null; then
-        echo ""
-        echo "❌ Code is not formatted. Please run 'nix develop -c cargo fmt' before pushing."
-        echo ""
-        echo "To see what needs formatting:"
-        echo "  nix develop -c cargo fmt --check --verbose"
+        echo "" >&2
+        echo "❌ Code is not formatted. Please run 'nix develop -c cargo fmt' before pushing." >&2
+        echo "" >&2
+        echo "To see what needs formatting:" >&2
+        echo "  nix develop -c cargo fmt --check --verbose" >&2
         exit 1
     fi
-    echo "✅ Formatting check passed"
-    echo ""
+    echo "✅ Formatting check passed" >&2
+    echo "" >&2
     
     # Run clippy (without --all-features since Bluetooth requires dbus)
-    echo "🔎 Running clippy linting..."
+    echo "🔎 Running clippy linting..." >&2
     if ! nix develop -c cargo clippy --all-targets -- -D warnings 2>&1; then
-        echo ""
-        echo "❌ Clippy found issues. Please fix them before pushing."
-        echo ""
-        echo "To see all issues:"
-        echo "  nix develop -c cargo clippy --all-targets"
-        echo ""
-        echo "To attempt automatic fixes:"
-        echo "  nix develop -c cargo clippy --all-targets --fix --allow-dirty"
+        echo "" >&2
+        echo "❌ Clippy found issues. Please fix them before pushing." >&2
+        echo "" >&2
+        echo "To see all issues:" >&2
+        echo "  nix develop -c cargo clippy --all-targets" >&2
+        echo "" >&2
+        echo "To attempt automatic fixes:" >&2
+        echo "  nix develop -c cargo clippy --all-targets --fix --allow-dirty" >&2
         exit 1
     fi
-    echo "✅ Clippy check passed"
-    echo ""
+    echo "✅ Clippy check passed" >&2
+    echo "" >&2
     
     # Run tests
-    echo "🧪 Running tests..."
+    echo "🧪 Running tests..." >&2
     if ! nix develop -c cargo test --all 2>&1; then
-        echo ""
-        echo "❌ Tests failed. Please fix them before pushing."
-        echo ""
-        echo "To run tests with output:"
-        echo "  nix develop -c cargo test --all -- --nocapture"
+        echo "" >&2
+        echo "❌ Tests failed. Please fix them before pushing." >&2
+        echo "" >&2
+        echo "To run tests with output:" >&2
+        echo "  nix develop -c cargo test --all -- --nocapture" >&2
         exit 1
     fi
-    echo "✅ All tests passed"
-    echo ""
+    echo "✅ All tests passed" >&2
+    echo "" >&2
     
     # Check for outdated dependencies (warning only)
-    echo "📦 Checking for outdated dependencies..."
+    echo "📦 Checking for outdated dependencies..." >&2
     if ! nix develop -c cargo outdated --exit-code 1 --root-deps-only 2>/dev/null; then
-        echo ""
-        echo "⚠️  Warning: Outdated dependencies detected:"
+        echo "" >&2
+        echo "⚠️  Warning: Outdated dependencies detected:" >&2
         nix develop -c cargo outdated --root-deps-only 2>/dev/null | head -30
-        echo ""
-        echo "To update compatible versions:"
-        echo "  nix develop -c cargo upgrade"
-        echo ""
-        echo "For incompatible updates (major versions), review changelog and update manually."
-        echo "Consider updating dependencies when appropriate."
+        echo "" >&2
+        echo "To update compatible versions:" >&2
+        echo "  nix develop -c cargo upgrade" >&2
+        echo "" >&2
+        echo "For incompatible updates (major versions), review changelog and update manually." >&2
+        echo "Consider updating dependencies when appropriate." >&2
     else
-        echo "✅ All dependencies are up to date"
+        echo "✅ All dependencies are up to date" >&2
     fi
 else
     # Fallback to regular cargo
-    echo "📝 Checking code formatting..."
+    echo "📝 Checking code formatting..." >&2
     if ! cargo fmt --check 2>/dev/null; then
-        echo ""
-        echo "❌ Code is not formatted. Please run 'cargo fmt' before pushing."
-        echo ""
-        echo "To see what needs formatting:"
-        echo "  cargo fmt --check --verbose"
+        echo "" >&2
+        echo "❌ Code is not formatted. Please run 'cargo fmt' before pushing." >&2
+        echo "" >&2
+        echo "To see what needs formatting:" >&2
+        echo "  cargo fmt --check --verbose" >&2
         exit 1
     fi
-    echo "✅ Formatting check passed"
-    echo ""
+    echo "✅ Formatting check passed" >&2
+    echo "" >&2
     
     # Run clippy
-    echo "🔎 Running clippy linting..."
+    echo "🔎 Running clippy linting..." >&2
     if ! cargo clippy --all-targets -- -D warnings 2>&1; then
-        echo ""
-        echo "❌ Clippy found issues. Please fix them before pushing."
-        echo ""
-        echo "To see all issues:"
-        echo "  cargo clippy --all-targets"
-        echo ""
-        echo "To attempt automatic fixes:"
-        echo "  cargo clippy --all-targets --fix --allow-dirty"
+        echo "" >&2
+        echo "❌ Clippy found issues. Please fix them before pushing." >&2
+        echo "" >&2
+        echo "To see all issues:" >&2
+        echo "  cargo clippy --all-targets" >&2
+        echo "" >&2
+        echo "To attempt automatic fixes:" >&2
+        echo "  cargo clippy --all-targets --fix --allow-dirty" >&2
         exit 1
     fi
-    echo "✅ Clippy check passed"
-    echo ""
+    echo "✅ Clippy check passed" >&2
+    echo "" >&2
     
     # Run tests
-    echo "🧪 Running tests..."
+    echo "🧪 Running tests..." >&2
     if ! cargo test --all 2>&1; then
-        echo ""
-        echo "❌ Tests failed. Please fix them before pushing."
-        echo ""
-        echo "To run tests with output:"
-        echo "  cargo test --all -- --nocapture"
+        echo "" >&2
+        echo "❌ Tests failed. Please fix them before pushing." >&2
+        echo "" >&2
+        echo "To run tests with output:" >&2
+        echo "  cargo test --all -- --nocapture" >&2
         exit 1
     fi
-    echo "✅ All tests passed"
-    echo ""
+    echo "✅ All tests passed" >&2
+    echo "" >&2
     
     # Check for outdated dependencies (non-nix fallback, warning only)
-    echo "📦 Checking for outdated dependencies..."
+    echo "📦 Checking for outdated dependencies..." >&2
     if command -v cargo-outdated >/dev/null 2>&1; then
         if ! cargo outdated --exit-code 1 --root-deps-only 2>/dev/null; then
-            echo ""
-            echo "⚠️  Warning: Outdated dependencies detected:"
+            echo "" >&2
+            echo "⚠️  Warning: Outdated dependencies detected:" >&2
             cargo outdated --root-deps-only 2>/dev/null | head -30
-            echo ""
-            echo "To update compatible versions:"
-            echo "  cargo upgrade"
-            echo ""
-            echo "For incompatible updates (major versions), review changelog and update manually."
-            echo "Consider updating dependencies when appropriate."
+            echo "" >&2
+            echo "To update compatible versions:" >&2
+            echo "  cargo upgrade" >&2
+            echo "" >&2
+            echo "For incompatible updates (major versions), review changelog and update manually." >&2
+            echo "Consider updating dependencies when appropriate." >&2
         else
-            echo "✅ All dependencies are up to date"
+            echo "✅ All dependencies are up to date" >&2
         fi
     else
-        echo "⚠️  cargo-outdated not found. Skipping dependency check."
-        echo "   Install with: cargo install cargo-outdated"
+        echo "⚠️  cargo-outdated not found. Skipping dependency check." >&2
+        echo "   Install with: cargo install cargo-outdated" >&2
     fi
 fi
 
-echo ""
-echo "✅ All pre-push checks passed! Proceeding with push..."
-echo ""
+echo "" >&2
+echo "✅ All pre-push checks passed! Proceeding with push..." >&2
+echo "" >&2
