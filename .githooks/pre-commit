@@ -5,21 +5,21 @@ set -euo pipefail
 if command -v nix >/dev/null 2>&1 && [ -f "flake.nix" ]; then
     # Use nix develop for consistent environment
     if ! nix develop -c cargo fmt --check 2>/dev/null; then
-        echo "❌ Code is not formatted. Please run 'nix develop -c cargo fmt' before committing."
-        echo ""
-        echo "To see what needs formatting:"
-        echo "  nix develop -c cargo fmt --check --verbose"
+        echo "❌ Code is not formatted. Please run 'nix develop -c cargo fmt' before committing." >&2
+        echo "" >&2
+        echo "To see what needs formatting:" >&2
+        echo "  nix develop -c cargo fmt --check --verbose" >&2
         exit 1
     fi
 else
     # Fallback to regular cargo
     if ! cargo fmt --check 2>/dev/null; then
-        echo "❌ Code is not formatted. Please run 'cargo fmt' before committing."
-        echo ""
-        echo "To see what needs formatting:"
-        echo "  cargo fmt --check --verbose"
+        echo "❌ Code is not formatted. Please run 'cargo fmt' before committing." >&2
+        echo "" >&2
+        echo "To see what needs formatting:" >&2
+        echo "  cargo fmt --check --verbose" >&2
         exit 1
     fi
 fi
 
-echo "✅ Code formatting check passed"
+echo "✅ Code formatting check passed" >&2
