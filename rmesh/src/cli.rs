@@ -255,6 +255,16 @@ pub enum PositionCommands {
         #[arg(short = 'n', long)]
         nodes: Vec<u32>,
     },
+
+    /// Request position from a specific node
+    Request {
+        /// Node ID to request position from
+        node: u32,
+
+        /// Timeout in seconds
+        #[arg(short = 't', long, default_value = "30")]
+        timeout: u64,
+    },
 }
 
 #[derive(Subcommand, Debug)]
