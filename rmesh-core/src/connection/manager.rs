@@ -505,6 +505,15 @@ async fn process_from_radio_packet(
             process_mesh_packet(mesh_packet, device_state, ack_waiters, route_waiters).await?;
         }
 
+        meshtastic::protobufs::from_radio::PayloadVariant::Config(config) => {
+            debug!("Received Config packet during initial connection");
+            process_config_response(config, device_state).await?;
+        }
+
+        meshtastic::protobufs::from_radio::PayloadVariant::ConfigCompleteId(id) => {
+            info!("Config complete received with ID: {id}");
+        }
+
         variant => {
             // Other packet types not yet handled
             debug!("Unhandled FromRadio packet variant: {variant:?}");
