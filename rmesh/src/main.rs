@@ -34,6 +34,7 @@ fn setup_logging(cli: &Cli) {
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(filter_level));
 
     let fmt_layer = fmt::layer()
+        .with_writer(std::io::stderr)
         .with_target(false)
         .with_thread_ids(false)
         .with_thread_names(false);
