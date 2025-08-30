@@ -109,6 +109,11 @@ impl ConnectionManager {
                     None, // Use default RTS
                 )
                 .context("Failed to connect via serial")?;
+
+                // Add a brief delay for serial port stabilization
+                // This helps avoid initial sync errors with stale data
+                tokio::time::sleep(Duration::from_millis(100)).await;
+
                 stream_api.connect(stream).await
             }
         } else {
@@ -131,6 +136,11 @@ impl ConnectionManager {
                 None, // Use default RTS
             )
             .context("Failed to connect to auto-detected serial port")?;
+
+            // Add a brief delay for serial port stabilization
+            // This helps avoid initial sync errors with stale data
+            tokio::time::sleep(Duration::from_millis(100)).await;
+
             stream_api.connect(stream).await
         };
 
@@ -186,6 +196,8 @@ impl ConnectionManager {
         self.packet_processor = Some(handle);
 
         // Give the processor a moment to start receiving initial packets
+        // This also serves as a connection stabilization period where initial
+        // sync errors are expected and can be safely ignored
         tokio::time::sleep(Duration::from_millis(500)).await;
     }
 
