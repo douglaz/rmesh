@@ -46,8 +46,10 @@ jobs:
     
     - name: Verify static linking
       run: |
-        file artifacts/linux-x86_64/rmesh | grep "statically linked"
-        ldd artifacts/linux-x86_64/rmesh 2>&1 | grep "not a dynamic executable" || true
+        # Check that file reports static or static-pie linked (modern PIE static binaries)
+        file artifacts/linux-x86_64/rmesh | grep -E "static(ally|-pie) linked"
+        # Verify with ldd that it's truly static
+        ldd artifacts/linux-x86_64/rmesh 2>&1 | grep "statically linked"
     
     - name: Create checksums
       run: |
