@@ -175,40 +175,40 @@
           PKG_CONFIG_PATH = "${pkgs.pkgsStatic.openssl.dev}/lib/pkgconfig:${pkgs.dbus.dev}/lib/pkgconfig";
           
           shellHook = ''
-            echo "🔧 rmesh Development Environment"
-            echo ""
+            echo "🔧 rmesh Development Environment" >&2
+            echo "" >&2
             
             # Automatically configure Git hooks for code quality
             if [ -d .git ] && [ -d .githooks ]; then
               current_hooks_path=$(git config core.hooksPath || echo "")
               if [ "$current_hooks_path" != ".githooks" ]; then
-                echo "📎 Setting up Git hooks for code quality checks..."
+                echo "📎 Setting up Git hooks for code quality checks..." >&2
                 git config core.hooksPath .githooks
-                echo "✅ Git hooks configured automatically!"
-                echo "   • pre-commit: Checks code formatting"
-                echo "   • pre-push: Runs formatting, clippy, and tests"
-                echo ""
-                echo "To disable: git config --unset core.hooksPath"
-                echo ""
+                echo "✅ Git hooks configured automatically!" >&2
+                echo "   • pre-commit: Checks code formatting" >&2
+                echo "   • pre-push: Runs formatting, clippy, and tests" >&2
+                echo "" >&2
+                echo "To disable: git config --unset core.hooksPath" >&2
+                echo "" >&2
               fi
             fi
             
-            echo "Available commands:"
-            echo "  cargo build                - Build debug version"
-            echo "  cargo build --release      - Build optimized version"
-            echo "  cargo run -- --help        - Run CLI with help"
-            echo "  cargo test                 - Run tests"
-            echo "  cargo clippy               - Run linter"
-            echo "  cargo fmt                  - Format code"
-            echo "  cargo outdated             - Check for outdated dependencies"
-            echo ""
-            echo "Build static binary:"
-            echo "  cargo build --release --target x86_64-unknown-linux-musl"
-            echo ""
-            echo "Git hooks:"
-            echo "  • pre-commit: Ensures code is formatted"
-            echo "  • pre-push: Runs full quality checks (fmt, clippy, tests)"
-            echo ""
+            echo "Available commands:" >&2
+            echo "  cargo build                - Build debug version" >&2
+            echo "  cargo build --release      - Build optimized version" >&2
+            echo "  cargo run -- --help        - Run CLI with help" >&2
+            echo "  cargo test                 - Run tests" >&2
+            echo "  cargo clippy               - Run linter" >&2
+            echo "  cargo fmt                  - Format code" >&2
+            echo "  cargo outdated             - Check for outdated dependencies" >&2
+            echo "" >&2
+            echo "Build static binary:" >&2
+            echo "  cargo build --release --target x86_64-unknown-linux-musl" >&2
+            echo "" >&2
+            echo "Git hooks:" >&2
+            echo "  • pre-commit: Ensures code is formatted" >&2
+            echo "  • pre-push: Runs full quality checks (fmt, clippy, tests)" >&2
+            echo "" >&2
           '';
         };
       }
