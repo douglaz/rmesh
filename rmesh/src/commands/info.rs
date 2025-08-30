@@ -18,7 +18,7 @@ struct RadioInfo {
 }
 
 pub async fn handle_info(
-    connection: ConnectionManager,
+    mut connection: ConnectionManager,
     subcommand: InfoCommands,
     format: OutputFormat,
 ) -> Result<()> {
@@ -195,17 +195,28 @@ pub async fn handle_info(
             println!("Device metrics not yet implemented");
         }
 
-        InfoCommands::Position => {
-            // Get position data from device state
-            let state = connection.get_device_state().await;
+        InfoCommands::Position { wait, request_all } => {
+            let positions = if let Some(wait_seconds) = wait {
+                // Wait for position broadcasts
+                println!("Waiting {wait_seconds} seconds for position broadcasts...");
+                rmesh_core::position::collect_positions(&mut connection, wait_seconds).await?
+            } else if request_all {
+                // Request positions from all known nodes
+                println!("Requesting positions from all nodes...");
+                rmesh_core::position::request_all_positions(&mut connection).await?
+            } else {
+                // Get current position data from device state
+                let state = connection.get_device_state().await;
+                state.positions
+            };
 
             match format {
                 OutputFormat::Json => {
                     // Always output JSON, even if empty (will be {})
-                    print_output(&state.positions, format);
+                    print_output(&positions, format);
                 }
                 OutputFormat::Table => {
-                    if state.positions.is_empty() {
+                    if positions.is_empty() {
                         println!("No position data available");
                         return Ok(());
                     }
@@ -219,7 +230,7 @@ pub async fn handle_info(
                         Cell::new("Time"),
                     ]);
 
-                    for (node_num, position) in state.positions {
+                    for (node_num, position) in positions {
                         table.add_row(vec![
                             Cell::new(format!("{num:08x}", num = node_num)),
                             Cell::new(format!("{lat:.6}", lat = position.latitude)),
