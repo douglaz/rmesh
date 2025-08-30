@@ -37,7 +37,9 @@ jobs:
     
     - name: Create tarball
       run: |
-        tar czf rmesh-linux-x86_64.tar.gz rmesh-linux-x86_64 README.md
+        mkdir -p linux-x86_64
+        cp rmesh-linux-x86_64 linux-x86_64/rmesh
+        tar czf rmesh-linux-x86_64.tar.gz linux-x86_64/
     
     - name: Upload artifact
       uses: actions/upload-artifact@v4
@@ -71,13 +73,21 @@ jobs:
     
     - name: Create tarball
       run: |
-        tar czf rmesh-${{ matrix.target }}.tar.gz rmesh-${{ matrix.target }} README.md
+        if [[ "${{ matrix.target }}" == "x86_64-apple-darwin" ]]; then
+          mkdir -p macos-x86_64
+          cp rmesh-${{ matrix.target }} macos-x86_64/rmesh
+          tar czf rmesh-macos-x86_64.tar.gz macos-x86_64/
+        else
+          mkdir -p macos-aarch64
+          cp rmesh-${{ matrix.target }} macos-aarch64/rmesh
+          tar czf rmesh-macos-aarch64.tar.gz macos-aarch64/
+        fi
     
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: rmesh-${{ matrix.target }}
-        path: rmesh-${{ matrix.target }}.tar.gz
+        path: rmesh-*.tar.gz
 
   build-windows:
     name: Build Windows Binary
@@ -94,11 +104,12 @@ jobs:
     - name: Build release binary
       run: |
         cargo build --release --target x86_64-pc-windows-msvc -p rmesh
-        Copy-Item target\x86_64-pc-windows-msvc\release\rmesh.exe rmesh-windows-x86_64.exe
+        New-Item -ItemType Directory -Force -Path windows-x86_64
+        Copy-Item target\x86_64-pc-windows-msvc\release\rmesh.exe windows-x86_64\rmesh.exe
     
     - name: Create zip archive
       run: |
-        Compress-Archive -Path rmesh-windows-x86_64.exe, README.md -DestinationPath rmesh-windows-x86_64.zip
+        Compress-Archive -Path windows-x86_64 -DestinationPath rmesh-windows-x86_64.zip
     
     - name: Upload artifact
       uses: actions/upload-artifact@v4
@@ -130,6 +141,7 @@ jobs:
           artifacts/rmesh-x86_64-apple-darwin/*.tar.gz
           artifacts/rmesh-aarch64-apple-darwin/*.tar.gz
           artifacts/rmesh-windows-x86_64/*.zip
+          rmesh.sh
         draft: false
         prerelease: false
         generate_release_notes: true
