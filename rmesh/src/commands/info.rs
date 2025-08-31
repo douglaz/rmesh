@@ -146,7 +146,10 @@ pub async fn handle_info(
                             ),
                             Cell::new(
                                 node.last_heard
-                                    .map(|h| h.to_string())
+                                    .and_then(|timestamp| {
+                                        chrono::DateTime::from_timestamp(timestamp as i64, 0)
+                                            .map(|dt| dt.to_rfc3339())
+                                    })
                                     .unwrap_or_else(|| "Never".to_string()),
                             ),
                         ]);

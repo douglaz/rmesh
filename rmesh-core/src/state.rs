@@ -26,6 +26,7 @@ pub struct NodeInfo {
     pub num: u32,
     pub user: User,
     pub last_heard: Option<u64>,
+    pub last_heard_iso: Option<String>,
     pub snr: Option<f32>,
     pub rssi: Option<i32>,
 }
