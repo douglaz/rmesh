@@ -331,7 +331,7 @@ pub async fn handle_info(
                             Cell::new("Uptime"),
                             Cell::new(
                                 m.uptime_seconds
-                                    .map(|s| format_uptime(s))
+                                    .map(format_uptime)
                                     .unwrap_or_else(|| "N/A".to_string()),
                             ),
                         ]);
