@@ -342,20 +342,18 @@ pub async fn collect_positions(
     Ok(all_positions)
 }
 
-/// Request positions from all known nodes
-pub async fn request_all_positions(
-    connection: &mut ConnectionManager,
-) -> Result<HashMap<u32, Position>> {
+/// Send position requests to all known nodes (without waiting for responses)
+pub async fn send_position_requests(connection: &mut ConnectionManager) -> Result<()> {
     // Get list of all known nodes
     let state = connection.get_device_state().await;
     let node_nums: Vec<u32> = state.nodes.keys().copied().collect();
 
     if node_nums.is_empty() {
         debug!("No nodes found to request positions from");
-        return Ok(HashMap::new());
+        return Ok(());
     }
 
-    info!("Requesting positions from {} nodes...", node_nums.len());
+    info!("Sending position requests to {} nodes...", node_nums.len());
 
     // Send position requests to all nodes
     for node_num in &node_nums {
@@ -395,6 +393,16 @@ pub async fn request_all_positions(
         // Small delay between requests to avoid overwhelming the mesh
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
+
+    Ok(())
+}
+
+/// Request positions from all known nodes (sends requests and waits for responses)
+pub async fn request_all_positions(
+    connection: &mut ConnectionManager,
+) -> Result<HashMap<u32, Position>> {
+    // Send position requests to all nodes
+    send_position_requests(connection).await?;
 
     // Wait for responses (give 10 seconds for all nodes to respond)
     info!("Waiting for position responses...");
