@@ -6,6 +6,24 @@ use crate::cli::{InfoCommands, TelemetryType};
 use crate::output::{OutputFormat, create_table, print_output};
 use rmesh_core::ConnectionManager;
 
+/// Format uptime seconds into a human-readable string
+fn format_uptime(seconds: u32) -> String {
+    let days = seconds / 86400;
+    let hours = (seconds % 86400) / 3600;
+    let minutes = (seconds % 3600) / 60;
+    let secs = seconds % 60;
+
+    if days > 0 {
+        format!("{days}d {hours}h {minutes}m")
+    } else if hours > 0 {
+        format!("{hours}h {minutes}m {secs}s")
+    } else if minutes > 0 {
+        format!("{minutes}m {secs}s")
+    } else {
+        format!("{secs}s")
+    }
+}
+
 #[derive(Debug, Serialize)]
 struct RadioInfo {
     pub firmware_version: String,
@@ -194,8 +212,139 @@ pub async fn handle_info(
             }
         }
 
-        InfoCommands::Metrics => {
-            println!("Device metrics not yet implemented");
+        InfoCommands::Metrics { wait, request } => {
+            // First, send telemetry request if requested
+            if request {
+                eprintln!("Requesting telemetry from device...");
+                rmesh_core::telemetry::request_device_telemetry(&mut connection).await?;
+            }
+
+            // Then collect telemetry based on wait flag
+            let metrics = if let Some(wait_seconds) = wait {
+                // Wait for telemetry broadcasts/responses
+                if request {
+                    eprintln!("Waiting {wait_seconds} seconds for telemetry response...");
+                } else {
+                    eprintln!("Waiting {wait_seconds} seconds for telemetry broadcasts...");
+                }
+                rmesh_core::telemetry::collect_telemetry(&mut connection, wait_seconds).await?
+            } else if request {
+                // Just requested telemetry, wait default 10 seconds for response
+                eprintln!("Waiting for telemetry response...");
+                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+                let state = connection.get_device_state().await;
+                let local_node_num = state.my_node_info.as_ref().map(|i| i.node_num);
+                local_node_num.and_then(|num| {
+                    state
+                        .telemetry
+                        .get(&num)
+                        .and_then(|t| t.device_metrics.clone())
+                })
+            } else {
+                // No flags: Get current telemetry data from device state
+                let state = connection.get_device_state().await;
+                let local_node_num = state.my_node_info.as_ref().map(|i| i.node_num);
+                local_node_num.and_then(|num| {
+                    state
+                        .telemetry
+                        .get(&num)
+                        .and_then(|t| t.device_metrics.clone())
+                })
+            };
+
+            match format {
+                OutputFormat::Json => {
+                    // Output device metrics or null
+                    print_output(&metrics, format);
+                }
+                OutputFormat::Table => {
+                    // Get device state for context
+                    let state = connection.get_device_state().await;
+                    let local_node_num = match &state.my_node_info {
+                        Some(info) => info.node_num,
+                        None => {
+                            println!("No local node information available");
+                            return Ok(());
+                        }
+                    };
+
+                    // Get node info for additional context
+                    let node_info = state.nodes.get(&local_node_num);
+                    let hw_model = node_info
+                        .and_then(|n| n.user.hw_model.as_ref())
+                        .map(|s| s.as_str())
+                        .unwrap_or("Unknown");
+
+                    let mut table = create_table();
+                    table.set_header(vec![Cell::new("Property"), Cell::new("Value")]);
+
+                    // Add node context
+                    table.add_row(vec![
+                        Cell::new("Node ID"),
+                        Cell::new(format!("{:08x}", local_node_num)),
+                    ]);
+                    table.add_row(vec![Cell::new("Hardware"), Cell::new(hw_model)]);
+
+                    if let Some(m) = metrics {
+                        // Battery level
+                        table.add_row(vec![
+                            Cell::new("Battery Level"),
+                            Cell::new(
+                                m.battery_level
+                                    .map(|b| format!("{b}%"))
+                                    .unwrap_or_else(|| "N/A".to_string()),
+                            ),
+                        ]);
+
+                        // Voltage
+                        table.add_row(vec![
+                            Cell::new("Voltage"),
+                            Cell::new(
+                                m.voltage
+                                    .map(|v| format!("{v:.2}V"))
+                                    .unwrap_or_else(|| "N/A".to_string()),
+                            ),
+                        ]);
+
+                        // Channel utilization
+                        table.add_row(vec![
+                            Cell::new("Channel Util"),
+                            Cell::new(
+                                m.channel_utilization
+                                    .map(|u| format!("{u:.1}%"))
+                                    .unwrap_or_else(|| "N/A".to_string()),
+                            ),
+                        ]);
+
+                        // Air utilization TX
+                        table.add_row(vec![
+                            Cell::new("Air Util TX"),
+                            Cell::new(
+                                m.air_util_tx
+                                    .map(|u| format!("{u:.1}%"))
+                                    .unwrap_or_else(|| "N/A".to_string()),
+                            ),
+                        ]);
+
+                        // Uptime
+                        table.add_row(vec![
+                            Cell::new("Uptime"),
+                            Cell::new(
+                                m.uptime_seconds
+                                    .map(format_uptime)
+                                    .unwrap_or_else(|| "N/A".to_string()),
+                            ),
+                        ]);
+                    } else {
+                        table.add_row(vec![
+                            Cell::new("Status"),
+                            Cell::new("No metrics data available"),
+                        ]);
+                    }
+
+                    println!("{table}");
+                }
+            }
         }
 
         InfoCommands::Position { wait, request_all } => {

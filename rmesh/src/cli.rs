@@ -117,7 +117,15 @@ pub enum InfoCommands {
         request_all: bool,
     },
     /// Display device metrics
-    Metrics,
+    Metrics {
+        /// Wait for telemetry broadcasts (in seconds)
+        #[arg(short = 'w', long)]
+        wait: Option<u64>,
+
+        /// Request telemetry from the device
+        #[arg(short = 'r', long)]
+        request: bool,
+    },
     /// Display telemetry data
     Telemetry,
 }
