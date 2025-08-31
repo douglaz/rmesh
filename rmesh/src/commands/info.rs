@@ -198,7 +198,7 @@ pub async fn handle_info(
         InfoCommands::Position { wait, request_all } => {
             // First, send position requests if requested
             if request_all {
-                println!("Requesting positions from all nodes...");
+                eprintln!("Requesting positions from all nodes...");
                 rmesh_core::position::send_position_requests(&mut connection).await?;
             }
 
@@ -206,16 +206,16 @@ pub async fn handle_info(
             let positions = if let Some(wait_seconds) = wait {
                 // Wait for position broadcasts/responses
                 if request_all {
-                    println!(
+                    eprintln!(
                         "Waiting {wait_seconds} seconds for position responses and broadcasts..."
                     );
                 } else {
-                    println!("Waiting {wait_seconds} seconds for position broadcasts...");
+                    eprintln!("Waiting {wait_seconds} seconds for position broadcasts...");
                 }
                 rmesh_core::position::collect_positions(&mut connection, wait_seconds).await?
             } else if request_all {
                 // Just requested positions, wait default 10 seconds for responses
-                println!("Waiting for position responses...");
+                eprintln!("Waiting for position responses...");
                 tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
                 let state = connection.get_device_state().await;
                 state.positions
