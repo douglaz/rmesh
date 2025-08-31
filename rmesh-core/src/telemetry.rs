@@ -90,13 +90,13 @@ pub async fn collect_telemetry(
         let state = connection.get_device_state().await;
 
         // Check for new or updated telemetry
-        if let Some(telemetry) = state.telemetry.get(&local_node_num) {
-            if let Some(metrics) = &telemetry.device_metrics {
-                // Check if this is newer than what we started with
-                if initial_time.is_none() || telemetry.time > initial_time.unwrap() {
-                    debug!("Received telemetry update from local device");
-                    return Ok(Some(metrics.clone()));
-                }
+        if let Some(telemetry) = state.telemetry.get(&local_node_num)
+            && let Some(metrics) = &telemetry.device_metrics
+        {
+            // Check if this is newer than what we started with
+            if initial_time.is_none() || telemetry.time > initial_time.unwrap() {
+                debug!("Received telemetry update from local device");
+                return Ok(Some(metrics.clone()));
             }
         }
 
