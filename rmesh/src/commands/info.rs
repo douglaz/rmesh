@@ -212,31 +212,62 @@ pub async fn handle_info(
             }
         }
 
-        InfoCommands::Metrics => {
-            // Get device state
-            let state = connection.get_device_state().await;
+        InfoCommands::Metrics { wait, request } => {
+            // First, send telemetry request if requested
+            if request {
+                eprintln!("Requesting telemetry from device...");
+                rmesh_core::telemetry::request_device_telemetry(&mut connection).await?;
+            }
 
-            // Get local node number
-            let local_node_num = match &state.my_node_info {
-                Some(info) => info.node_num,
-                None => {
-                    println!("No local node information available");
-                    return Ok(());
+            // Then collect telemetry based on wait flag
+            let metrics = if let Some(wait_seconds) = wait {
+                // Wait for telemetry broadcasts/responses
+                if request {
+                    eprintln!("Waiting {wait_seconds} seconds for telemetry response...");
+                } else {
+                    eprintln!("Waiting {wait_seconds} seconds for telemetry broadcasts...");
                 }
+                rmesh_core::telemetry::collect_telemetry(&mut connection, wait_seconds).await?
+            } else if request {
+                // Just requested telemetry, wait default 10 seconds for response
+                eprintln!("Waiting for telemetry response...");
+                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+                let state = connection.get_device_state().await;
+                let local_node_num = state.my_node_info.as_ref().map(|i| i.node_num);
+                local_node_num.and_then(|num| {
+                    state
+                        .telemetry
+                        .get(&num)
+                        .and_then(|t| t.device_metrics.clone())
+                })
+            } else {
+                // No flags: Get current telemetry data from device state
+                let state = connection.get_device_state().await;
+                let local_node_num = state.my_node_info.as_ref().map(|i| i.node_num);
+                local_node_num.and_then(|num| {
+                    state
+                        .telemetry
+                        .get(&num)
+                        .and_then(|t| t.device_metrics.clone())
+                })
             };
-
-            // Get metrics for local node
-            let metrics = state
-                .telemetry
-                .get(&local_node_num)
-                .and_then(|t| t.device_metrics.as_ref());
 
             match format {
                 OutputFormat::Json => {
-                    // Output device metrics or empty object
+                    // Output device metrics or null
                     print_output(&metrics, format);
                 }
                 OutputFormat::Table => {
+                    // Get device state for context
+                    let state = connection.get_device_state().await;
+                    let local_node_num = match &state.my_node_info {
+                        Some(info) => info.node_num,
+                        None => {
+                            println!("No local node information available");
+                            return Ok(());
+                        }
+                    };
+
                     // Get node info for additional context
                     let node_info = state.nodes.get(&local_node_num);
                     let hw_model = node_info
