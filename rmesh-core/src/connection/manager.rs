@@ -496,6 +496,10 @@ async fn process_from_radio_packet(
         meshtastic::protobufs::from_radio::PayloadVariant::NodeInfo(node_info) => {
             let mut state = device_state.lock().await;
             let user = node_info.user.clone().unwrap_or_default();
+            let last_heard = node_info.last_heard as u64;
+            let last_heard_iso =
+                chrono::DateTime::from_timestamp(last_heard as i64, 0).map(|dt| dt.to_rfc3339());
+
             state.update_node(
                 node_info.num,
                 NodeInfo {
@@ -507,7 +511,8 @@ async fn process_from_radio_packet(
                         short_name: user.short_name.clone(),
                         hw_model: Some(format!("{model:?}", model = user.hw_model())),
                     },
-                    last_heard: Some(node_info.last_heard as u64),
+                    last_heard: Some(last_heard),
+                    last_heard_iso,
                     snr: Some(node_info.snr),
                     rssi: Some(0), // NodeInfo doesn't have RSSI
                 },

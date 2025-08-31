@@ -28,6 +28,8 @@ mod state_tests {
                 hw_model: Some("T-Beam".to_string()),
             },
             last_heard: Some(1234567890),
+            last_heard_iso: chrono::DateTime::from_timestamp(1234567890, 0)
+                .map(|dt| dt.to_rfc3339()),
             snr: Some(5.5),
             rssi: Some(-70),
         };
@@ -118,6 +120,7 @@ mod state_tests {
                 hw_model: None,
             },
             last_heard: None,
+            last_heard_iso: None,
             snr: None,
             rssi: None,
         };
