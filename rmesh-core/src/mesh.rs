@@ -72,6 +72,18 @@ pub async fn get_topology(connection: &ConnectionManager) -> Result<serde_json::
 
     // Add all known nodes
     for (node_num, node_info) in &state.nodes {
+        // Estimate hops based on signal quality
+        // Strong signal (SNR > 0 or RSSI > -90) likely means direct connection (1 hop)
+        // Weaker signal might indicate multiple hops
+        let hops_away = match (node_info.snr, node_info.rssi) {
+            (Some(snr), _) if snr > 0.0 => Some(1), // Strong SNR, likely direct
+            (_, Some(rssi)) if rssi > -90 => Some(1), // Good RSSI, likely direct
+            (Some(snr), _) if snr > -5.0 => Some(2), // Moderate SNR, possibly 2 hops
+            (_, Some(rssi)) if rssi > -100 => Some(2), // Fair RSSI, possibly 2 hops
+            (Some(_), _) | (_, Some(_)) => Some(3), // Weak signal, likely 3+ hops
+            _ => None,                              // No signal data available
+        };
+
         nodes.push(MeshNode {
             id: node_info.id.clone(),
             num: *node_num,
@@ -79,7 +91,7 @@ pub async fn get_topology(connection: &ConnectionManager) -> Result<serde_json::
             snr: node_info.snr,
             rssi: node_info.rssi,
             last_heard: node_info.last_heard,
-            hops_away: None, // TODO: Calculate from routing info
+            hops_away,
         });
 
         // If we have SNR/RSSI, there's likely a direct connection

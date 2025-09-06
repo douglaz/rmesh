@@ -112,13 +112,47 @@ pub async fn collect_telemetry(
         .and_then(|t| t.device_metrics.clone()))
 }
 
-/// Request telemetry from a node (legacy function, kept for compatibility)
+/// Request telemetry from a node
 pub async fn request_telemetry(
-    _connection: &mut ConnectionManager,
-    _telemetry_type: TelemetryType,
-    _node_id: Option<u32>,
+    connection: &mut ConnectionManager,
+    telemetry_type: TelemetryType,
+    node_id: Option<u32>,
 ) -> Result<()> {
-    // TODO: Implement telemetry request for specific types
+    let api = connection.get_api()?;
+
+    // Create a simple packet router
+    let mut router = SimplePacketRouter;
+
+    // For telemetry, we send an empty telemetry packet with want_response set
+    // This triggers the remote node to send back its telemetry data
+    let telemetry_request = protobufs::Telemetry {
+        time: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as u32,
+        variant: None, // Empty variant acts as a request
+    };
+
+    // Send telemetry request
+    api.send_mesh_packet(
+        &mut router,
+        telemetry_request.encode_to_vec().into(),
+        protobufs::PortNum::TelemetryApp,
+        if let Some(node) = node_id {
+            meshtastic::packet::PacketDestination::Node(node.into())
+        } else {
+            meshtastic::packet::PacketDestination::Local
+        },
+        0.into(), // Primary channel
+        false,    // want_ack
+        true,     // want_response
+        false,    // echo_response
+        None,     // packet_id
+        None,     // emoji
+    )
+    .await?;
+
+    debug!("Telemetry request sent for type: {telemetry_type:?}, node: {node_id:?}");
     Ok(())
 }
 
