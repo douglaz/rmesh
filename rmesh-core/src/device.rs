@@ -11,6 +11,12 @@ pub async fn reboot_device(
     connection: &mut ConnectionManager,
     delay_seconds: Option<i32>,
 ) -> Result<()> {
+    // Ensure we have a session key for admin operations
+    connection.ensure_session_key().await?;
+
+    // Get the session key
+    let session_key = connection.get_session_key().await.unwrap_or_default();
+
     let api = connection.get_api()?;
     let delay = delay_seconds.unwrap_or(5);
 
@@ -19,7 +25,7 @@ pub async fn reboot_device(
         payload_variant: Some(protobufs::admin_message::PayloadVariant::RebootSeconds(
             delay,
         )),
-        session_passkey: Vec::new(),
+        session_passkey: session_key,
     };
 
     // Create mesh packet
@@ -59,12 +65,18 @@ pub async fn reboot_device(
 /// # Warning
 /// This will erase all device settings and cannot be undone!
 pub async fn factory_reset_device(connection: &mut ConnectionManager) -> Result<()> {
+    // Ensure we have a session key for admin operations
+    connection.ensure_session_key().await?;
+
+    // Get the session key
+    let session_key = connection.get_session_key().await.unwrap_or_default();
+
     let api = connection.get_api()?;
 
     // Create admin message for factory reset
     let admin_msg = protobufs::AdminMessage {
         payload_variant: Some(protobufs::admin_message::PayloadVariant::FactoryResetDevice(1)),
-        session_passkey: Vec::new(),
+        session_passkey: session_key,
     };
 
     // Create mesh packet
@@ -108,6 +120,12 @@ pub async fn shutdown_device(
     connection: &mut ConnectionManager,
     delay_seconds: Option<i32>,
 ) -> Result<()> {
+    // Ensure we have a session key for admin operations
+    connection.ensure_session_key().await?;
+
+    // Get the session key
+    let session_key = connection.get_session_key().await.unwrap_or_default();
+
     let api = connection.get_api()?;
     let delay = delay_seconds.unwrap_or(5);
 
@@ -116,7 +134,7 @@ pub async fn shutdown_device(
         payload_variant: Some(protobufs::admin_message::PayloadVariant::ShutdownSeconds(
             delay,
         )),
-        session_passkey: Vec::new(),
+        session_passkey: session_key,
     };
 
     // Create mesh packet
