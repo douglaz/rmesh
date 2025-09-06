@@ -57,18 +57,35 @@ pub async fn handle_config(
 
         ConfigCommands::List => {
             // Use the core library function
-            let config = rmesh_core::config::list_config(&connection).await?;
+            let config = rmesh_core::config::list_config(&mut connection).await?;
 
             match format {
                 OutputFormat::Json => print_output(&config, format),
                 OutputFormat::Table => {
-                    println!(
-                        "{}",
-                        "Full configuration listing not yet implemented".yellow()
-                    );
-                    println!(
-                        "Available categories: device, position, power, network, display, lora, bluetooth"
-                    );
+                    // Display configuration in a readable table format
+                    if let Some(obj) = config.as_object() {
+                        for (category, values) in obj {
+                            println!("\n{}", category.to_uppercase().bold().cyan());
+
+                            if let Some(cat_obj) = values.as_object() {
+                                let mut table = create_table();
+                                table.set_header(vec![Cell::new("Setting"), Cell::new("Value")]);
+
+                                for (key, value) in cat_obj {
+                                    let value_str = match value {
+                                        serde_json::Value::String(s) => s.clone(),
+                                        serde_json::Value::Null => "Not set".to_string(),
+                                        v => v.to_string(),
+                                    };
+                                    table.add_row(vec![Cell::new(key), Cell::new(&value_str)]);
+                                }
+
+                                println!("{table}");
+                            }
+                        }
+                    } else {
+                        println!("No configuration available");
+                    }
                 }
             }
         }

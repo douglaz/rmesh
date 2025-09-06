@@ -253,8 +253,63 @@ pub async fn set_config_value(
 }
 
 /// List all configuration settings
-pub async fn list_config(connection: &ConnectionManager) -> Result<serde_json::Value> {
-    // Get the current device state which includes all config
+pub async fn list_config(connection: &mut ConnectionManager) -> Result<serde_json::Value> {
+    // Ensure we have a session key for admin operations
+    connection.ensure_session_key().await?;
+
+    // Get the session key
+    let session_key = connection.get_session_key().await.unwrap_or_default();
+
+    let api = connection.get_api()?;
+
+    // Request all config types to get fresh data
+    let config_types = [
+        protobufs::admin_message::ConfigType::DeviceConfig,
+        protobufs::admin_message::ConfigType::PositionConfig,
+        protobufs::admin_message::ConfigType::PowerConfig,
+        protobufs::admin_message::ConfigType::NetworkConfig,
+        protobufs::admin_message::ConfigType::DisplayConfig,
+        protobufs::admin_message::ConfigType::LoraConfig,
+        protobufs::admin_message::ConfigType::BluetoothConfig,
+    ];
+
+    for config_type in config_types {
+        // Create admin message for config request with session key
+        let admin_msg = protobufs::AdminMessage {
+            payload_variant: Some(protobufs::admin_message::PayloadVariant::GetConfigRequest(
+                config_type as i32,
+            )),
+            session_passkey: session_key.clone(),
+        };
+
+        // Create mesh packet
+        let mesh_packet = protobufs::MeshPacket {
+            payload_variant: Some(protobufs::mesh_packet::PayloadVariant::Decoded(
+                protobufs::Data {
+                    portnum: protobufs::PortNum::AdminApp as i32,
+                    payload: admin_msg.encode_to_vec(),
+                    want_response: true,
+                    ..Default::default()
+                },
+            )),
+            to: 0, // Local destination
+            ..Default::default()
+        };
+
+        // Send config request
+        api.send_to_radio_packet(Some(protobufs::to_radio::PayloadVariant::Packet(
+            mesh_packet,
+        )))
+        .await?;
+
+        // Small delay between requests
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    }
+
+    // Wait for all responses to be processed
+    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+    // Get the updated device state which includes all config
     let state = connection.get_device_state().await;
 
     // Build complete configuration from cached state
