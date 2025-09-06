@@ -51,6 +51,7 @@ pub struct ConnectionManager {
     packet_processor: Option<JoinHandle<()>>,
     ack_waiters: Arc<Mutex<HashMap<u32, oneshot::Sender<bool>>>>,
     route_waiters: Arc<Mutex<HashMap<u32, oneshot::Sender<Vec<crate::mesh::RouteHop>>>>>,
+    admin_session_passkey: Arc<Mutex<Option<Vec<u8>>>>,
 }
 
 impl ConnectionManager {
@@ -65,6 +66,7 @@ impl ConnectionManager {
             packet_processor: None,
             ack_waiters: Arc::new(Mutex::new(HashMap::new())),
             route_waiters: Arc::new(Mutex::new(HashMap::new())),
+            admin_session_passkey: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -194,6 +196,7 @@ impl ConnectionManager {
         let device_state = self.device_state.clone();
         let ack_waiters = self.ack_waiters.clone();
         let route_waiters = self.route_waiters.clone();
+        let admin_session_passkey = self.admin_session_passkey.clone();
 
         // Spawn a background task to process packets
         let handle = tokio::spawn(async move {
@@ -205,6 +208,7 @@ impl ConnectionManager {
                     device_state.clone(),
                     ack_waiters.clone(),
                     route_waiters.clone(),
+                    admin_session_passkey.clone(),
                 )
                 .await
                 {
@@ -467,6 +471,89 @@ impl ConnectionManager {
             }
         }
     }
+
+    /// Request a session key from the device for admin operations
+    pub async fn ensure_session_key(&mut self) -> Result<()> {
+        // Check if we already have a session key
+        {
+            let session_key = self.admin_session_passkey.lock().await;
+            if session_key.is_some() {
+                debug!("Session key already exists");
+                return Ok(());
+            }
+        }
+
+        info!("Requesting admin session key...");
+
+        let api = self.get_api()?;
+
+        // Create admin message for session key request
+        let admin_msg = meshtastic::protobufs::AdminMessage {
+            payload_variant: Some(
+                meshtastic::protobufs::admin_message::PayloadVariant::GetConfigRequest(
+                    meshtastic::protobufs::admin_message::ConfigType::SessionkeyConfig as i32,
+                ),
+            ),
+            session_passkey: Vec::new(),
+        };
+
+        // Create mesh packet
+        let mesh_packet = meshtastic::protobufs::MeshPacket {
+            payload_variant: Some(meshtastic::protobufs::mesh_packet::PayloadVariant::Decoded(
+                meshtastic::protobufs::Data {
+                    portnum: meshtastic::protobufs::PortNum::AdminApp as i32,
+                    payload: admin_msg.encode_to_vec(),
+                    want_response: true,
+                    ..Default::default()
+                },
+            )),
+            to: 0, // Local destination
+            ..Default::default()
+        };
+
+        // Send session key request
+        api.send_to_radio_packet(Some(
+            meshtastic::protobufs::to_radio::PayloadVariant::Packet(mesh_packet),
+        ))
+        .await?;
+
+        // Wait for the session key to be received
+        let timeout = Duration::from_secs(5);
+        let start = std::time::Instant::now();
+
+        loop {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+
+            let session_key = self.admin_session_passkey.lock().await;
+            if session_key.is_some() {
+                info!("Session key received successfully");
+                return Ok(());
+            }
+
+            if start.elapsed() > timeout {
+                bail!("Timeout waiting for session key");
+            }
+        }
+    }
+
+    /// Get the current session key if available
+    pub async fn get_session_key(&self) -> Option<Vec<u8>> {
+        self.admin_session_passkey.lock().await.clone()
+    }
+
+    /// Set the session key (used when receiving admin responses)
+    pub async fn set_session_key(&self, key: Vec<u8>) {
+        let mut session_key = self.admin_session_passkey.lock().await;
+        *session_key = Some(key);
+        debug!("Session key updated");
+    }
+
+    /// Clear the session key (used on disconnect or authentication failure)
+    pub async fn clear_session_key(&self) {
+        let mut session_key = self.admin_session_passkey.lock().await;
+        *session_key = None;
+        debug!("Session key cleared");
+    }
 }
 
 async fn process_from_radio_packet(
@@ -474,6 +561,7 @@ async fn process_from_radio_packet(
     device_state: Arc<Mutex<DeviceState>>,
     ack_waiters: Arc<Mutex<HashMap<u32, oneshot::Sender<bool>>>>,
     route_waiters: Arc<Mutex<HashMap<u32, oneshot::Sender<Vec<crate::mesh::RouteHop>>>>>,
+    admin_session_passkey: Arc<Mutex<Option<Vec<u8>>>>,
 ) -> Result<()> {
     let payload_variant = match from_radio.payload_variant {
         Some(variant) => variant,
@@ -541,7 +629,14 @@ async fn process_from_radio_packet(
         }
 
         meshtastic::protobufs::from_radio::PayloadVariant::Packet(mesh_packet) => {
-            process_mesh_packet(mesh_packet, device_state, ack_waiters, route_waiters).await?;
+            process_mesh_packet(
+                mesh_packet,
+                device_state,
+                ack_waiters,
+                route_waiters,
+                admin_session_passkey,
+            )
+            .await?;
         }
 
         meshtastic::protobufs::from_radio::PayloadVariant::Config(config) => {
@@ -567,6 +662,7 @@ async fn process_mesh_packet(
     device_state: Arc<Mutex<DeviceState>>,
     ack_waiters: Arc<Mutex<HashMap<u32, oneshot::Sender<bool>>>>,
     route_waiters: Arc<Mutex<HashMap<u32, oneshot::Sender<Vec<crate::mesh::RouteHop>>>>>,
+    admin_session_passkey: Arc<Mutex<Option<Vec<u8>>>>,
 ) -> Result<()> {
     let payload_variant = match mesh_packet.payload_variant {
         Some(variant) => variant,
@@ -718,6 +814,14 @@ async fn process_mesh_packet(
                 meshtastic::protobufs::AdminMessage::decode(packet_data.payload.as_slice())
             {
                 debug!("Decoded admin message: {admin_msg:?}");
+
+                // Extract and store the session passkey if present
+                if !admin_msg.session_passkey.is_empty() {
+                    let mut session_key = admin_session_passkey.lock().await;
+                    *session_key = Some(admin_msg.session_passkey.clone());
+                    info!("Received and stored admin session passkey");
+                }
+
                 if let Some(
                     meshtastic::protobufs::admin_message::PayloadVariant::GetConfigResponse(config),
                 ) = admin_msg.payload_variant

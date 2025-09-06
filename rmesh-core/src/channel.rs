@@ -29,6 +29,12 @@ pub async fn add_channel(
     name: &str,
     psk: Option<&str>,
 ) -> Result<()> {
+    // Ensure we have a session key for admin operations
+    connection.ensure_session_key().await?;
+
+    // Get the session key
+    let session_key = connection.get_session_key().await.unwrap_or_default();
+
     let api = connection.get_api()?;
 
     // Create channel settings
@@ -51,7 +57,7 @@ pub async fn add_channel(
                 role: protobufs::channel::Role::Primary as i32,
             },
         )),
-        session_passkey: Vec::new(),
+        session_passkey: session_key,
     };
 
     // Create mesh packet
@@ -88,6 +94,12 @@ pub async fn add_channel(
 
 /// Delete a channel
 pub async fn delete_channel(connection: &mut ConnectionManager, index: u32) -> Result<()> {
+    // Ensure we have a session key for admin operations
+    connection.ensure_session_key().await?;
+
+    // Get the session key
+    let session_key = connection.get_session_key().await.unwrap_or_default();
+
     let api = connection.get_api()?;
 
     // Create admin message for channel delete
@@ -95,7 +107,7 @@ pub async fn delete_channel(connection: &mut ConnectionManager, index: u32) -> R
         payload_variant: Some(protobufs::admin_message::PayloadVariant::RemoveByNodenum(
             index,
         )),
-        session_passkey: Vec::new(),
+        session_passkey: session_key,
     };
 
     // Create mesh packet
@@ -137,6 +149,12 @@ pub async fn set_channel(
     name: Option<&str>,
     psk: Option<&str>,
 ) -> Result<()> {
+    // Ensure we have a session key for admin operations
+    connection.ensure_session_key().await?;
+
+    // Get the session key
+    let session_key = connection.get_session_key().await.unwrap_or_default();
+
     let api = connection.get_api()?;
 
     // Create channel settings
@@ -159,7 +177,7 @@ pub async fn set_channel(
                 role: protobufs::channel::Role::Primary as i32,
             },
         )),
-        session_passkey: Vec::new(),
+        session_passkey: session_key,
     };
 
     // Create mesh packet
