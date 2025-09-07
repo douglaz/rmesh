@@ -2,6 +2,7 @@ use crate::connection::ConnectionManager;
 use anyhow::Result;
 use meshtastic::{Message, protobufs};
 use serde::Serialize;
+use tracing::debug;
 
 /// List all channels configured on the device
 pub async fn list_channels(connection: &ConnectionManager) -> Result<Vec<ChannelInfo>> {
@@ -29,8 +30,11 @@ pub async fn add_channel(
     name: &str,
     psk: Option<&str>,
 ) -> Result<()> {
-    // Ensure we have a session key for admin operations
-    connection.ensure_session_key().await?;
+    // Try to get a session key, but continue even if it fails
+    // Some devices may not require authentication
+    if let Err(e) = connection.ensure_session_key().await {
+        debug!("Failed to get session key (may not be required): {e}");
+    }
 
     // Get the session key
     let session_key = connection.get_session_key().await.unwrap_or_default();
@@ -94,8 +98,11 @@ pub async fn add_channel(
 
 /// Delete a channel
 pub async fn delete_channel(connection: &mut ConnectionManager, index: u32) -> Result<()> {
-    // Ensure we have a session key for admin operations
-    connection.ensure_session_key().await?;
+    // Try to get a session key, but continue even if it fails
+    // Some devices may not require authentication
+    if let Err(e) = connection.ensure_session_key().await {
+        debug!("Failed to get session key (may not be required): {e}");
+    }
 
     // Get the session key
     let session_key = connection.get_session_key().await.unwrap_or_default();
@@ -149,8 +156,11 @@ pub async fn set_channel(
     name: Option<&str>,
     psk: Option<&str>,
 ) -> Result<()> {
-    // Ensure we have a session key for admin operations
-    connection.ensure_session_key().await?;
+    // Try to get a session key, but continue even if it fails
+    // Some devices may not require authentication
+    if let Err(e) = connection.ensure_session_key().await {
+        debug!("Failed to get session key (may not be required): {e}");
+    }
 
     // Get the session key
     let session_key = connection.get_session_key().await.unwrap_or_default();

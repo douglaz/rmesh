@@ -2,14 +2,18 @@ use crate::connection::ConnectionManager;
 use anyhow::{Result, bail, ensure};
 use meshtastic::{Message, protobufs};
 use serde_json::json;
+use tracing::debug;
 
 /// Get a configuration value by key
 pub async fn get_config_value(
     connection: &mut ConnectionManager,
     key: &str,
 ) -> Result<serde_json::Value> {
-    // Ensure we have a session key for admin operations
-    connection.ensure_session_key().await?;
+    // Try to get a session key, but continue even if it fails
+    // Some devices may not require authentication
+    if let Err(e) = connection.ensure_session_key().await {
+        debug!("Failed to get session key (may not be required): {e}");
+    }
 
     // Parse the key
     let parts: Vec<&str> = key.split('.').collect();
@@ -152,8 +156,11 @@ pub async fn set_config_value(
     key: &str,
     value: &str,
 ) -> Result<()> {
-    // Ensure we have a session key for admin operations
-    connection.ensure_session_key().await?;
+    // Try to get a session key, but continue even if it fails
+    // Some devices may not require authentication
+    if let Err(e) = connection.ensure_session_key().await {
+        debug!("Failed to get session key (may not be required): {e}");
+    }
 
     // Get the session key
     let session_key = connection.get_session_key().await.unwrap_or_default();
@@ -254,8 +261,11 @@ pub async fn set_config_value(
 
 /// List all configuration settings
 pub async fn list_config(connection: &mut ConnectionManager) -> Result<serde_json::Value> {
-    // Ensure we have a session key for admin operations
-    connection.ensure_session_key().await?;
+    // Try to get a session key, but continue even if it fails
+    // Some devices may not require authentication
+    if let Err(e) = connection.ensure_session_key().await {
+        debug!("Failed to get session key (may not be required): {e}");
+    }
 
     // Get the session key
     let session_key = connection.get_session_key().await.unwrap_or_default();
