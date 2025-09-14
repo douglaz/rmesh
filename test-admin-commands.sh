@@ -32,9 +32,10 @@ echo "--------------------------"
 $RMESH --port $PORT channel list --json | jq '.' || echo "Failed"
 
 echo ""
-echo "4. Testing info metrics (with wait and request)..."
-echo "--------------------------------------------------"
-$RMESH --port $PORT info metrics --wait 3 --request --json 2>/dev/null | jq '.' || echo "Failed"
+echo "4. Testing info metrics (wait for broadcasts)..."
+echo "-------------------------------------------------"
+echo "Waiting up to 10 seconds for telemetry..."
+$RMESH --port $PORT info metrics --wait 10 --json 2>/dev/null | jq '.' || echo "Failed"
 
 echo ""
 echo "5. Testing info nodes..."
