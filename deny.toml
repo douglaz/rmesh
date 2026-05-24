@@ -27,6 +27,9 @@ allow = [
     "Unlicense",
     "CDLA-Permissive-2.0",
     "MITNFA",
+    "GPL-3.0",
+    "GPL-3.0-only",
+    "GPL-3.0-or-later",
 ]
 confidence-threshold = 0.8
 
