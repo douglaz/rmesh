@@ -5,6 +5,7 @@ mod tests;
 use anyhow::Result;
 use clap::{Parser, ValueEnum};
 use colored::*;
+use std::io::IsTerminal;
 use std::path::PathBuf;
 use tracing_subscriber::EnvFilter;
 
@@ -72,7 +73,7 @@ async fn main() -> Result<()> {
     };
 
     // Check if we're connected to a TTY
-    let is_tty = atty::is(atty::Stream::Stdout);
+    let is_tty = std::io::stdout().is_terminal();
     let non_interactive = args.non_interactive || !is_tty;
 
     tracing_subscriber::fmt()
