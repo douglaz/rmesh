@@ -42,7 +42,7 @@ jobs:
         tar czf rmesh-linux-x86_64.tar.gz linux-x86_64/
     
     - name: Upload artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: rmesh-linux-x86_64
         path: rmesh-linux-x86_64.tar.gz
@@ -84,7 +84,7 @@ jobs:
         fi
     
     - name: Upload artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: rmesh-${{ matrix.target }}
         path: rmesh-*.tar.gz
@@ -112,7 +112,7 @@ jobs:
         Compress-Archive -Path windows-x86_64 -DestinationPath rmesh-windows-x86_64.zip
     
     - name: Upload artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: rmesh-windows-x86_64
         path: rmesh-windows-x86_64.zip
