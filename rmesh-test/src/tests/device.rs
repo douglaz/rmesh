@@ -75,21 +75,11 @@ async fn test_firmware_version(ctx: &mut TestContext<'_>) -> Result<Value> {
 async fn test_hardware_model(ctx: &mut TestContext<'_>) -> Result<Value> {
     let state = ctx.connection.get_device_state().await;
 
-    // Try to get hardware model from nodes
-    let hardware_model = state
-        .nodes
-        .values()
-        .find_map(|node| node.user.hw_model.clone())
-        .or_else(|| {
-            // Fallback: guess from other info
-            if state.my_node_info.is_some() {
-                Some("Unknown".to_string())
-            } else {
-                None
-            }
-        });
-
-    let model = hardware_model.context("Could not determine hardware model")?;
+    // Must describe the local radio. Scanning the whole NodeDB picked whichever entry the
+    // HashMap happened to yield first, so this test could report a neighbour's board.
+    let model = state
+        .hardware_model()
+        .context("Could not determine hardware model")?;
 
     // List of known good models
     let known_models = [

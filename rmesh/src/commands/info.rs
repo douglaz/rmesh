@@ -53,16 +53,9 @@ pub async fn handle_info(
                 .map(|m| m.firmware_version.clone())
                 .unwrap_or_else(|| "Unknown".to_string());
 
-            // Get hardware model from nodes (typically the local node has this info)
-            let hardware_model = if let Some(my_info) = &state.my_node_info {
-                state
-                    .nodes
-                    .get(&my_info.node_num)
-                    .and_then(|node| node.user.hw_model.clone())
-                    .unwrap_or_else(|| "Unknown".to_string())
-            } else {
-                "Unknown".to_string()
-            };
+            let hardware_model = state
+                .hardware_model()
+                .unwrap_or_else(|| "Unknown".to_string());
 
             // Get region from LoRa config
             let region = state
