@@ -17,6 +17,10 @@ use crate::state::{
     PositionConfig, PowerConfig, TelemetryData, TextMessage, User,
 };
 
+/// want_config nonce the firmware treats as "send the configuration without the node DB".
+/// A randomly generated id must never collide with it.
+const NODELESS_WANT_CONFIG_ID: u32 = 69420;
+
 /// A simple packet router that doesn't handle incoming packets
 struct NoOpRouter;
 
@@ -43,7 +47,6 @@ impl PacketRouter<(), std::io::Error> for NoOpRouter {
 pub struct ConnectionManager {
     port: Option<String>,
     ble: Option<String>,
-    #[allow(dead_code)] // Will be used for connection timeouts in the future
     timeout: Duration,
     api: Option<ConnectedStreamApi<Configured>>,
     packet_receiver: Option<PacketReceiver>,
@@ -170,7 +173,13 @@ impl ConnectionManager {
 
         // Configure the connection
         info!("Configuring connection...");
-        let config_id = utils::generate_rand_id();
+        // generate_rand_id draws from the whole u32 range, so it can land on the sentinel
+        // the firmware reads as "send the config without the node DB" and hand back an
+        // empty node list. The reference client steps past it the same way.
+        let mut config_id = utils::generate_rand_id::<u32>();
+        if config_id == NODELESS_WANT_CONFIG_ID {
+            config_id += 1;
+        }
         let configured_api = connected_api
             .configure(config_id)
             .await
@@ -179,14 +188,19 @@ impl ConnectionManager {
         // Store the configured API
         self.api = Some(configured_api);
 
+        // Record which dump we are waiting for before any packet can be processed.
+        // `disconnect` leaves device_state intact, so a reconnect would otherwise inherit
+        // the previous session's completion flag and skip the wait entirely.
+        self.device_state.lock().await.begin_config_dump(config_id);
+
         // Start packet processing
         self.start_packet_processing(packet_receiver).await;
 
-        // Request all configuration from the device
-        if let Err(e) = self.request_all_configs().await {
-            warn!("Failed to request device configuration: {e}");
-            // Continue anyway as this is not critical for connection
-        }
+        // The radio dumps my_info, metadata, channels, config and the whole node DB in
+        // response to want_config, then terminates it with ConfigCompleteId. Wait for that
+        // marker rather than a fixed delay: how long the dump takes scales with the size of
+        // the node DB, and reading device state early yields a half-populated view.
+        self.wait_for_config_complete().await;
 
         info!("Connection established and configured successfully");
         Ok(())
@@ -220,11 +234,48 @@ impl ConnectionManager {
         });
 
         self.packet_processor = Some(handle);
+    }
 
-        // Give the processor a moment to start receiving initial packets
-        // This also serves as a connection stabilization period where initial
-        // sync errors are expected and can be safely ignored
-        tokio::time::sleep(Duration::from_millis(500)).await;
+    /// Block until the radio signals the end of its initial configuration dump.
+    ///
+    /// Falls back to a warning rather than an error: commands that only send (such as
+    /// `message send`) still work against a device that never emits ConfigCompleteId.
+    async fn wait_for_config_complete(&self) {
+        // Deliberately bounded even when the caller passes zero. Treating zero as "no
+        // limit" wedges forever against a peer that stays connected but never finishes its
+        // dump: the liveness check below sees a live task, so nothing breaks the loop. The
+        // CLI rejects zero outright; a library caller that passes it gets an immediate
+        // warning and degraded state, which is recoverable where a hang is not.
+        let budget = self.timeout;
+        let start = std::time::Instant::now();
+
+        while start.elapsed() < budget {
+            if self.device_state.lock().await.config_complete {
+                debug!(
+                    "Initial config dump completed in {elapsed:?}",
+                    elapsed = start.elapsed()
+                );
+                return;
+            }
+
+            // Once the processing task has ended nothing can set the flag, so sitting out
+            // the rest of the budget would stall every command for the full timeout.
+            if self
+                .packet_processor
+                .as_ref()
+                .is_some_and(|handle| handle.is_finished())
+            {
+                warn!("Connection closed before the initial config dump completed");
+                return;
+            }
+
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+
+        warn!(
+            "Timed out after {budget:?} waiting for the initial config dump; \
+             device state may be incomplete"
+        );
     }
 
     pub fn is_connected(&self) -> bool {
@@ -348,66 +399,6 @@ impl ConnectionManager {
                 Ok(Vec::new())
             }
         }
-    }
-
-    /// Request all configuration from the device
-    async fn request_all_configs(&mut self) -> Result<()> {
-        info!("Requesting device configuration...");
-
-        let api = self.get_api()?;
-
-        // List of config types to request
-        let config_types = [
-            meshtastic::protobufs::admin_message::ConfigType::DeviceConfig,
-            meshtastic::protobufs::admin_message::ConfigType::PositionConfig,
-            meshtastic::protobufs::admin_message::ConfigType::PowerConfig,
-            meshtastic::protobufs::admin_message::ConfigType::NetworkConfig,
-            meshtastic::protobufs::admin_message::ConfigType::DisplayConfig,
-            meshtastic::protobufs::admin_message::ConfigType::LoraConfig,
-            meshtastic::protobufs::admin_message::ConfigType::BluetoothConfig,
-        ];
-
-        for config_type in config_types {
-            debug!("Requesting config type: {config_type:?}");
-
-            // Create admin message for config request
-            let admin_msg = meshtastic::protobufs::AdminMessage {
-                payload_variant: Some(
-                    meshtastic::protobufs::admin_message::PayloadVariant::GetConfigRequest(
-                        config_type as i32,
-                    ),
-                ),
-                session_passkey: Vec::new(),
-            };
-
-            // Create mesh packet
-            let mesh_packet = meshtastic::protobufs::MeshPacket {
-                payload_variant: Some(meshtastic::protobufs::mesh_packet::PayloadVariant::Decoded(
-                    meshtastic::protobufs::Data {
-                        portnum: meshtastic::protobufs::PortNum::AdminApp as i32,
-                        payload: admin_msg.encode_to_vec(),
-                        ..Default::default()
-                    },
-                )),
-                to: 0, // Local destination
-                ..Default::default()
-            };
-
-            // Send config request
-            api.send_to_radio_packet(Some(
-                meshtastic::protobufs::to_radio::PayloadVariant::Packet(mesh_packet),
-            ))
-            .await?;
-
-            // Small delay between requests to avoid overwhelming the device
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-
-        // Give time for all config responses to be received and processed
-        tokio::time::sleep(Duration::from_millis(1000)).await;
-
-        info!("Configuration requests sent");
-        Ok(())
     }
 
     pub async fn send_text_with_ack(
@@ -644,8 +635,28 @@ async fn process_from_radio_packet(
             process_config_response(config, device_state).await?;
         }
 
+        meshtastic::protobufs::from_radio::PayloadVariant::Metadata(metadata) => {
+            let mut state = device_state.lock().await;
+            debug!(
+                "Updated device metadata (firmware {version})",
+                version = metadata.firmware_version
+            );
+            state.metadata = Some(metadata);
+        }
+
         meshtastic::protobufs::from_radio::PayloadVariant::ConfigCompleteId(id) => {
-            info!("Config complete received with ID: {id}");
+            let mut state = device_state.lock().await;
+            if state.want_config_id == Some(id) {
+                info!("Config complete received with ID: {id}");
+                state.config_complete = true;
+            } else {
+                // A dump requested by an earlier client can still be draining out of the
+                // radio; accepting its marker would end our wait on a partial state.
+                debug!(
+                    "Ignoring ConfigCompleteId {id} from an earlier session (waiting for {want:?})",
+                    want = state.want_config_id
+                );
+            }
         }
 
         variant => {
@@ -1114,4 +1125,80 @@ async fn process_config_response(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Feed a single FromRadio payload through the handler against a fresh state.
+    async fn feed(
+        state: &Arc<Mutex<DeviceState>>,
+        variant: meshtastic::protobufs::from_radio::PayloadVariant,
+    ) {
+        process_from_radio_packet(
+            meshtastic::protobufs::FromRadio {
+                id: 0,
+                payload_variant: Some(variant),
+            },
+            state.clone(),
+            Arc::new(Mutex::new(HashMap::new())),
+            Arc::new(Mutex::new(HashMap::new())),
+            Arc::new(Mutex::new(None)),
+        )
+        .await
+        .expect("handler should accept the packet");
+    }
+
+    /// The firmware version comes from DeviceMetadata; my_node_info.min_app_version is a
+    /// different quantity and must not be used as a stand-in for it.
+    #[tokio::test]
+    async fn metadata_supplies_the_firmware_version() {
+        let state = Arc::new(Mutex::new(DeviceState::new()));
+
+        feed(
+            &state,
+            meshtastic::protobufs::from_radio::PayloadVariant::Metadata(
+                meshtastic::protobufs::DeviceMetadata {
+                    firmware_version: "2.7.26.54e0d8d".to_string(),
+                    ..Default::default()
+                },
+            ),
+        )
+        .await;
+
+        let metadata = state.lock().await.metadata.clone();
+        assert_eq!(
+            metadata.expect("metadata stored").firmware_version,
+            "2.7.26.54e0d8d"
+        );
+    }
+
+    /// Only the dump this session asked for may end the wait; a marker left over from an
+    /// earlier client would otherwise release connect() on a half-populated state.
+    #[tokio::test]
+    async fn config_complete_accepts_only_the_requested_dump() {
+        let state = Arc::new(Mutex::new(DeviceState::new()));
+        state.lock().await.want_config_id = Some(42);
+
+        feed(
+            &state,
+            meshtastic::protobufs::from_radio::PayloadVariant::ConfigCompleteId(7),
+        )
+        .await;
+        assert!(
+            !state.lock().await.config_complete,
+            "a stale ConfigCompleteId must not end the wait"
+        );
+
+        feed(
+            &state,
+            meshtastic::protobufs::from_radio::PayloadVariant::ConfigCompleteId(42),
+        )
+        .await;
+        assert!(
+            state.lock().await.config_complete,
+            "the requested ConfigCompleteId must end the wait"
+        );
+    }
 }

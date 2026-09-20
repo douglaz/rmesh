@@ -7,6 +7,7 @@ use clap::{Parser, ValueEnum};
 use colored::*;
 use std::io::IsTerminal;
 use std::path::PathBuf;
+use std::time::Duration;
 use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Clone, ValueEnum)]
@@ -44,8 +45,8 @@ struct Args {
     #[arg(short, long)]
     verbose: bool,
 
-    /// Connection timeout in seconds
-    #[arg(long, default_value = "30")]
+    /// Connection timeout in seconds (must be at least 1)
+    #[arg(long, default_value = "30", value_parser = clap::value_parser!(u64).range(1..))]
     timeout: u64,
 
     /// Non-interactive mode (disables progress bars, suitable for nohup/background execution)
@@ -136,7 +137,13 @@ async fn main() -> Result<()> {
     };
 
     // Create test runner
-    let mut runner = runner::TestRunner::new(port.clone(), args.verbose, non_interactive).await?;
+    let mut runner = runner::TestRunner::new(
+        port.clone(),
+        args.verbose,
+        non_interactive,
+        Duration::from_secs(args.timeout),
+    )
+    .await?;
 
     // Run tests
     let report = if let Some(test_list) = args.tests {

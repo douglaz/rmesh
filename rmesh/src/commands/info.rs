@@ -45,15 +45,13 @@ pub async fn handle_info(
             // Get actual device information from the device state
             let state = connection.get_device_state().await;
 
-            // Extract firmware version from min_app_version
-            let firmware_version = if let Some(my_info) = &state.my_node_info {
-                let major = my_info.min_app_version / 10000;
-                let minor = (my_info.min_app_version % 10000) / 100;
-                let patch = my_info.min_app_version % 100;
-                format!("{major}.{minor}.{patch}")
-            } else {
-                "Unknown".to_string()
-            };
+            // The firmware version is only reported in DeviceMetadata. Deriving it from
+            // my_node_info.min_app_version yields the minimum *client app* version instead.
+            let firmware_version = state
+                .metadata
+                .as_ref()
+                .map(|m| m.firmware_version.clone())
+                .unwrap_or_else(|| "Unknown".to_string());
 
             // Get hardware model from nodes (typically the local node has this info)
             let hardware_model = if let Some(my_info) = &state.my_node_info {

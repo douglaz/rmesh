@@ -18,8 +18,14 @@ pub struct Cli {
     #[arg(short = 'j', long, global = true)]
     pub json: bool,
 
-    /// Connection timeout in seconds
-    #[arg(short = 't', long, global = true, default_value = "30")]
+    /// Connection timeout in seconds (must be at least 1)
+    #[arg(
+        short = 't',
+        long,
+        global = true,
+        default_value = "30",
+        value_parser = clap::value_parser!(u64).range(1..)
+    )]
     pub timeout: u64,
 
     /// Enable debug logging

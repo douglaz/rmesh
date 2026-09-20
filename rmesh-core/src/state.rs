@@ -18,6 +18,13 @@ pub struct DeviceState {
     pub lora_config: Option<LoraConfig>,
     pub bluetooth_config: Option<BluetoothConfig>,
     pub telemetry: HashMap<u32, TelemetryData>,
+    /// Device metadata reported by the radio, including the real firmware version.
+    pub metadata: Option<meshtastic::protobufs::DeviceMetadata>,
+    /// The want_config id this session asked for, used to tell our configuration dump
+    /// apart from one still draining from an earlier client.
+    pub want_config_id: Option<u32>,
+    /// Set once the radio has finished the configuration dump for `want_config_id`.
+    pub config_complete: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -109,6 +116,18 @@ impl DeviceState {
 
     pub fn set_my_node_info(&mut self, info: MyNodeInfo) {
         self.my_node_info = Some(info);
+    }
+
+    /// Start waiting for the configuration dump identified by `config_id`.
+    ///
+    /// These fields have to move together. Leaving `config_complete` set from an earlier
+    /// session would let a reconnect skip the wait for its own dump, and keeping the
+    /// previous `metadata` would let a dump that omits it — or times out before it
+    /// arrives — report the *earlier* firmware version rather than `Unknown`.
+    pub fn begin_config_dump(&mut self, config_id: u32) {
+        self.want_config_id = Some(config_id);
+        self.config_complete = false;
+        self.metadata = None;
     }
 
     pub fn get_node_by_id(&self, node_id: &str) -> Option<&NodeInfo> {

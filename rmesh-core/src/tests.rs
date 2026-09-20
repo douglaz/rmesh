@@ -88,6 +88,33 @@ mod state_tests {
         Ok(())
     }
 
+    /// `disconnect` leaves DeviceState intact, so a second `connect` must not inherit the
+    /// previous session's completion flag and skip waiting for its own dump.
+    #[test]
+    fn test_begin_config_dump_clears_previous_completion() -> Result<()> {
+        let mut state = DeviceState::new();
+
+        state.begin_config_dump(7);
+        state.config_complete = true;
+
+        state.metadata = Some(meshtastic::protobufs::DeviceMetadata {
+            firmware_version: "2.6.11.60ec05e".to_string(),
+            ..Default::default()
+        });
+
+        state.begin_config_dump(42);
+        assert_eq!(state.want_config_id, Some(42));
+        assert!(
+            !state.config_complete,
+            "a reconnect must wait for its own config dump"
+        );
+        assert!(
+            state.metadata.is_none(),
+            "a dump that omits metadata must report Unknown, not the earlier firmware"
+        );
+        Ok(())
+    }
+
     #[test]
     fn test_my_node_info() -> Result<()> {
         let mut state = DeviceState::new();
