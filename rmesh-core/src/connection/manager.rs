@@ -17,6 +17,10 @@ use crate::state::{
     PositionConfig, PowerConfig, TelemetryData, TextMessage, User,
 };
 
+/// want_config nonce the firmware treats as "send the configuration without the node DB".
+/// A randomly generated id must never collide with it.
+const NODELESS_WANT_CONFIG_ID: u32 = 69420;
+
 /// A simple packet router that doesn't handle incoming packets
 struct NoOpRouter;
 
@@ -169,7 +173,13 @@ impl ConnectionManager {
 
         // Configure the connection
         info!("Configuring connection...");
-        let config_id = utils::generate_rand_id();
+        // generate_rand_id draws from the whole u32 range, so it can land on the sentinel
+        // the firmware reads as "send the config without the node DB" and hand back an
+        // empty node list. The reference client steps past it the same way.
+        let mut config_id = utils::generate_rand_id::<u32>();
+        if config_id == NODELESS_WANT_CONFIG_ID {
+            config_id += 1;
+        }
         let configured_api = connected_api
             .configure(config_id)
             .await
@@ -231,14 +241,12 @@ impl ConnectionManager {
     /// Falls back to a warning rather than an error: commands that only send (such as
     /// `message send`) still work against a device that never emits ConfigCompleteId.
     async fn wait_for_config_complete(&self) {
-        // A zero timeout means "no limit" rather than "do not wait at all", which would
-        // hand back empty state. The liveness check below still ends the wait early if
-        // the radio goes away.
-        let budget = if self.timeout.is_zero() {
-            Duration::MAX
-        } else {
-            self.timeout
-        };
+        // Deliberately bounded even when the caller passes zero. Treating zero as "no
+        // limit" wedges forever against a peer that stays connected but never finishes its
+        // dump: the liveness check below sees a live task, so nothing breaks the loop. The
+        // CLI rejects zero outright; a library caller that passes it gets an immediate
+        // warning and degraded state, which is recoverable where a hang is not.
+        let budget = self.timeout;
         let start = std::time::Instant::now();
 
         while start.elapsed() < budget {
