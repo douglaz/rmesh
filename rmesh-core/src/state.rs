@@ -120,11 +120,14 @@ impl DeviceState {
 
     /// Start waiting for the configuration dump identified by `config_id`.
     ///
-    /// The two fields have to move together: leaving `config_complete` set from an
-    /// earlier session would let a reconnect skip the wait for its own dump.
+    /// These fields have to move together. Leaving `config_complete` set from an earlier
+    /// session would let a reconnect skip the wait for its own dump, and keeping the
+    /// previous `metadata` would let a dump that omits it — or times out before it
+    /// arrives — report the *earlier* firmware version rather than `Unknown`.
     pub fn begin_config_dump(&mut self, config_id: u32) {
         self.want_config_id = Some(config_id);
         self.config_complete = false;
+        self.metadata = None;
     }
 
     pub fn get_node_by_id(&self, node_id: &str) -> Option<&NodeInfo> {
