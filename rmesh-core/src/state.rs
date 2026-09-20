@@ -118,6 +118,15 @@ impl DeviceState {
         self.my_node_info = Some(info);
     }
 
+    /// Start waiting for the configuration dump identified by `config_id`.
+    ///
+    /// The two fields have to move together: leaving `config_complete` set from an
+    /// earlier session would let a reconnect skip the wait for its own dump.
+    pub fn begin_config_dump(&mut self, config_id: u32) {
+        self.want_config_id = Some(config_id);
+        self.config_complete = false;
+    }
+
     pub fn get_node_by_id(&self, node_id: &str) -> Option<&NodeInfo> {
         self.nodes.values().find(|n| n.id == node_id)
     }

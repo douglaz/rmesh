@@ -179,7 +179,9 @@ impl ConnectionManager {
         self.api = Some(configured_api);
 
         // Record which dump we are waiting for before any packet can be processed.
-        self.device_state.lock().await.want_config_id = Some(config_id);
+        // `disconnect` leaves device_state intact, so a reconnect would otherwise inherit
+        // the previous session's completion flag and skip the wait entirely.
+        self.device_state.lock().await.begin_config_dump(config_id);
 
         // Start packet processing
         self.start_packet_processing(packet_receiver).await;
