@@ -7,6 +7,7 @@ use clap::{Parser, ValueEnum};
 use colored::*;
 use std::io::IsTerminal;
 use std::path::PathBuf;
+use std::time::Duration;
 use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Clone, ValueEnum)]
@@ -136,7 +137,13 @@ async fn main() -> Result<()> {
     };
 
     // Create test runner
-    let mut runner = runner::TestRunner::new(port.clone(), args.verbose, non_interactive).await?;
+    let mut runner = runner::TestRunner::new(
+        port.clone(),
+        args.verbose,
+        non_interactive,
+        Duration::from_secs(args.timeout),
+    )
+    .await?;
 
     // Run tests
     let report = if let Some(test_list) = args.tests {

@@ -45,18 +45,14 @@ async fn test_device_info(ctx: &mut TestContext<'_>) -> Result<Value> {
 async fn test_firmware_version(ctx: &mut TestContext<'_>) -> Result<Value> {
     let state = ctx.connection.get_device_state().await;
 
-    // Get firmware version from node info or config
-    let firmware_version = if let Some(my_info) = &state.my_node_info {
-        // Extract from min_app_version or other fields
-        let major = my_info.min_app_version / 10000;
-        let minor = (my_info.min_app_version % 10000) / 100;
-        let patch = my_info.min_app_version % 100;
-        Some(format!("{major}.{minor}.{patch}"))
-    } else {
-        None
-    };
-
-    let firmware = firmware_version.context("Could not determine firmware version")?;
+    // The firmware version is only reported in DeviceMetadata. Deriving it from
+    // my_node_info.min_app_version yields the minimum *client app* version instead,
+    // which made the 2.x check below unfalsifiable.
+    let firmware = state
+        .metadata
+        .as_ref()
+        .map(|m| m.firmware_version.clone())
+        .context("Could not determine firmware version")?;
 
     // Check if firmware is recent enough (2.x or higher)
     let parts: Vec<&str> = firmware.split('.').collect();

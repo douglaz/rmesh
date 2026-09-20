@@ -18,6 +18,13 @@ pub struct DeviceState {
     pub lora_config: Option<LoraConfig>,
     pub bluetooth_config: Option<BluetoothConfig>,
     pub telemetry: HashMap<u32, TelemetryData>,
+    /// Device metadata reported by the radio, including the real firmware version.
+    pub metadata: Option<meshtastic::protobufs::DeviceMetadata>,
+    /// The want_config id this session asked for, used to tell our configuration dump
+    /// apart from one still draining from an earlier client.
+    pub want_config_id: Option<u32>,
+    /// Set once the radio has finished the configuration dump for `want_config_id`.
+    pub config_complete: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

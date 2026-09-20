@@ -18,7 +18,12 @@ pub struct TestRunner {
 }
 
 impl TestRunner {
-    pub async fn new(port: String, verbose: bool, non_interactive: bool) -> Result<Self> {
+    pub async fn new(
+        port: String,
+        verbose: bool,
+        non_interactive: bool,
+        timeout: Duration,
+    ) -> Result<Self> {
         eprintln!(
             "{arrow} Connecting to device on {port}...",
             arrow = "→".cyan(),
@@ -28,7 +33,7 @@ impl TestRunner {
         let mut connection = ConnectionManager::new(
             Some(port.clone()),
             None, // No BLE support in test
-            Duration::from_secs(30),
+            timeout,
         )
         .await?;
 
