@@ -432,31 +432,40 @@ pub async fn list_config(connection: &mut ConnectionManager) -> Result<serde_jso
 fn parse_region(value: &str) -> Result<protobufs::config::lo_ra_config::RegionCode> {
     use protobufs::config::lo_ra_config::RegionCode;
 
-    let region = match value.to_uppercase().as_str() {
-        "US" | "US915" => RegionCode::Us,
+    let upper = value.to_uppercase();
+
+    // Canonical protobuf names first, so every region the protobufs know is accepted
+    // without listing it here — including whatever the next regen adds.
+    if let Some(region) = RegionCode::from_str_name(&upper) {
+        return Ok(region);
+    }
+
+    // Spellings rmesh accepted before it emitted the canonical names. Kept so existing
+    // scripts keep working; the underscored forms are already covered above.
+    let region = match upper.as_str() {
+        "US915" => RegionCode::Us,
         "EU" | "EU433" => RegionCode::Eu433,
-        "EU868" | "EU_868" => RegionCode::Eu868,
-        "CN" => RegionCode::Cn,
-        "JP" => RegionCode::Jp,
-        "ANZ" => RegionCode::Anz,
-        "KR" => RegionCode::Kr,
-        "TW" => RegionCode::Tw,
-        "RU" => RegionCode::Ru,
-        "IN" => RegionCode::In,
-        "NZ865" | "NZ_865" => RegionCode::Nz865,
-        "TH" => RegionCode::Th,
-        "UA433" | "UA_433" => RegionCode::Ua433,
-        "UA868" | "UA_868" => RegionCode::Ua868,
-        "MY_433" => RegionCode::My433,
-        "MY_919" => RegionCode::My919,
-        "SG_923" => RegionCode::Sg923,
-        "LORA_24" => RegionCode::Lora24,
+        "EU868" => RegionCode::Eu868,
+        "NZ865" => RegionCode::Nz865,
+        "UA433" => RegionCode::Ua433,
+        "UA868" => RegionCode::Ua868,
+        "MY433" => RegionCode::My433,
+        "MY919" => RegionCode::My919,
+        "SG923" => RegionCode::Sg923,
+        "PH433" => RegionCode::Ph433,
+        "PH868" => RegionCode::Ph868,
+        "PH915" => RegionCode::Ph915,
+        "LORA24" => RegionCode::Lora24,
         _ => bail!("Unknown region: {value}"),
     };
 
     Ok(region)
 }
 
+/// ROUTER_CLIENT (deprecated upstream in v2.3.15) and REPEATER (v2.7.11) are still accepted:
+/// radios in the field continue to report them, and refusing to name a role the user's device
+/// is actually running would make it unreadable rather than discouraged.
+#[allow(deprecated)]
 fn parse_role(value: &str) -> Result<protobufs::config::device_config::Role> {
     use protobufs::config::device_config::Role;
 

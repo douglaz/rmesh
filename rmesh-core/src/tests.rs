@@ -136,21 +136,31 @@ mod state_tests {
         Ok(())
     }
 
-    /// The real Seeed Solar Node case: hw_model 95 postdates the pinned protobufs, and the
-    /// generated accessor maps an unrecognised value back to UNSET. The raw number has to
-    /// survive, or the board silently reads as "Unknown".
+    /// A board newer than the vendored protobufs must still report its id: prost's
+    /// generated accessor maps an unrecognised value back to UNSET, which would make a real
+    /// radio look like it does not know its own hardware.
+    ///
+    /// This is what happened to the Seeed Solar Node (95) while the protobufs were pinned
+    /// at v2.5.23. Regenerating them made 95 known, so the id below is asserted to be
+    /// unassigned rather than hardcoded as "some board we don't have" — otherwise a later
+    /// regen silently turns this into a test of the known-board path.
     #[test]
     fn test_hardware_model_surfaces_a_board_newer_than_the_protobufs() -> Result<()> {
-        const SEEED_SOLAR_NODE: i32 = 95;
+        const UNASSIGNED_HW_MODEL: i32 = 222;
+        assert!(
+            meshtastic::protobufs::HardwareModel::try_from(UNASSIGNED_HW_MODEL).is_err(),
+            "hw_model {UNASSIGNED_HW_MODEL} is now a real board — pick another unassigned id"
+        );
+
         let mut state = state_with_unset_local_hw_model();
         state.metadata = Some(meshtastic::protobufs::DeviceMetadata {
-            hw_model: SEEED_SOLAR_NODE,
+            hw_model: UNASSIGNED_HW_MODEL,
             ..Default::default()
         });
 
         assert_eq!(
             state.hardware_model().as_deref(),
-            Some("Unknown(95)"),
+            Some("Unknown(222)"),
             "a board the protobufs do not know must still report its id"
         );
         Ok(())

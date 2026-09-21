@@ -38,7 +38,7 @@
           cargoLock = {
             lockFile = ./Cargo.lock;
             outputHashes = {
-              "meshtastic-0.1.7" = "sha256-yKUDnKCOb+yM272K4SrRvuM/sstAngr4ZJaTyLcU2pk=";
+              "meshtastic-0.1.7" = "sha256-jFWb6oH2AH6iRsh/af/RSWdWL2GGVubP+CxLi6XMxE8=";
             };
           };
           
@@ -120,7 +120,7 @@
           cargoLock = {
             lockFile = ./Cargo.lock;
             outputHashes = {
-              "meshtastic-0.1.7" = "sha256-yKUDnKCOb+yM272K4SrRvuM/sstAngr4ZJaTyLcU2pk=";
+              "meshtastic-0.1.7" = "sha256-jFWb6oH2AH6iRsh/af/RSWdWL2GGVubP+CxLi6XMxE8=";
             };
           };
           
