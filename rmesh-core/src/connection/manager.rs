@@ -860,12 +860,45 @@ async fn process_mesh_packet(
                     info!("Received and stored admin session passkey");
                 }
 
-                if let Some(
-                    meshtastic::protobufs::admin_message::PayloadVariant::GetConfigResponse(config),
-                ) = admin_msg.payload_variant
-                {
-                    debug!("Processing config response");
-                    process_config_response(config, device_state).await?;
+                match admin_msg.payload_variant {
+                    Some(
+                        meshtastic::protobufs::admin_message::PayloadVariant::GetConfigResponse(
+                            config,
+                        ),
+                    ) => {
+                        debug!("Processing config response");
+                        process_config_response(config, device_state).await?;
+                    }
+                    // Without this the reply to GetChannelRequest is dropped, so a channel
+                    // readback can never observe anything and every channel write reports
+                    // failure however well it went.
+                    Some(
+                        meshtastic::protobufs::admin_message::PayloadVariant::GetChannelResponse(
+                            channel,
+                        ),
+                    ) => {
+                        let mut state = device_state.lock().await;
+                        debug!(
+                            "Processing channel response for {index}",
+                            index = channel.index
+                        );
+                        state.update_channel(ChannelInfo {
+                            index: channel.index as u32,
+                            name: channel
+                                .settings
+                                .as_ref()
+                                .map(|s| s.name.clone())
+                                .unwrap_or_default(),
+                            role: format!("{role:?}", role = channel.role()),
+                            has_psk: channel
+                                .settings
+                                .as_ref()
+                                .map(|s| !s.psk.is_empty())
+                                .unwrap_or_default(),
+                            settings: channel.settings,
+                        });
+                    }
+                    _ => {}
                 }
             } else {
                 debug!("Failed to decode admin message");

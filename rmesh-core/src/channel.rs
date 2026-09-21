@@ -189,6 +189,9 @@ async fn send_channel(
     connection: &mut ConnectionManager,
     channel: protobufs::Channel,
 ) -> Result<()> {
+    let index = channel.index as u32;
+    let expected_role = channel.role;
+
     if let Err(e) = connection.ensure_session_key().await {
         debug!("Failed to get session key (may not be required): {e}");
     }
@@ -220,5 +223,83 @@ async fn send_channel(
         mesh_packet,
     )))
     .await?;
-    Ok(())
+
+    verify_channel(connection, index, expected_role).await
+}
+
+/// Read the channel back and confirm the write landed.
+///
+/// Sending the packet only means the bytes left the host: the radio rejects admin writes it
+/// will not authorise, and an unsupported PSK length, without anything the write path sees.
+/// Reporting success on that basis is reporting that we typed.
+async fn verify_channel(
+    connection: &mut ConnectionManager,
+    index: u32,
+    expected_role: i32,
+) -> Result<()> {
+    // Drop the cached slot, so whatever comes back must be from this readback.
+    connection
+        .get_device_state_ref()
+        .lock()
+        .await
+        .invalidate_channel(index);
+
+    let session_key = connection.get_session_key().await.unwrap_or_default();
+    let local_node = connection.local_node_num().await?;
+    let admin_msg = protobufs::AdminMessage {
+        // The radio expects index + 1 here, so that 0 is never "field not present".
+        payload_variant: Some(protobufs::admin_message::PayloadVariant::GetChannelRequest(
+            index + 1,
+        )),
+        session_passkey: session_key,
+    };
+
+    let deadline = connection.timeout();
+    {
+        let api = connection.get_api()?;
+        let mesh_packet = protobufs::MeshPacket {
+            payload_variant: Some(protobufs::mesh_packet::PayloadVariant::Decoded(
+                protobufs::Data {
+                    portnum: protobufs::PortNum::AdminApp as i32,
+                    payload: admin_msg.encode_to_vec(),
+                    want_response: true,
+                    ..Default::default()
+                },
+            )),
+            to: local_node,
+            priority: protobufs::mesh_packet::Priority::Default as i32,
+            ..Default::default()
+        };
+        api.send_to_radio_packet(Some(protobufs::to_radio::PayloadVariant::Packet(
+            mesh_packet,
+        )))
+        .await?;
+    }
+
+    let start = std::time::Instant::now();
+    while start.elapsed() < deadline {
+        if let Some(ch) = connection
+            .get_device_state()
+            .await
+            .channels
+            .iter()
+            .find(|c| c.index == index)
+        {
+            let actual = match ch.role.as_str() {
+                "Primary" => protobufs::channel::Role::Primary as i32,
+                "Secondary" => protobufs::channel::Role::Secondary as i32,
+                _ => protobufs::channel::Role::Disabled as i32,
+            };
+            ensure!(
+                actual == expected_role,
+                "Device did not apply the change to channel {index}: it reports role {role}. \
+                 Admin writes usually need an authorised admin key for this radio.",
+                role = ch.role
+            );
+            return Ok(());
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+
+    bail!("Device sent no channel {index} back, so the change could not be confirmed")
 }

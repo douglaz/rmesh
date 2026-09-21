@@ -167,6 +167,15 @@ impl DeviceState {
         // same tty, so that is a real sequence, not a hypothetical.
         self.raw_lora_config = None;
         self.raw_device_config = None;
+        // Channels too: `channel add` picks a free slot from this list and `channel set`
+        // sends the cached settings back, so a previous radio's list would let one radio's
+        // PSK be written to another.
+        self.channels.clear();
+    }
+
+    /// Forget one channel slot, so a readback has to come from the radio.
+    pub fn invalidate_channel(&mut self, index: u32) {
+        self.channels.retain(|c| c.index != index);
     }
 
     /// Forget the cached copy of one config sub-message, so the next read has to come from

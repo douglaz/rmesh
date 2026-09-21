@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod state_tests {
-    use crate::state::{DeviceConfig, DeviceMetrics, PositionConfig, TelemetryData};
     use crate::state::{
-        DeviceState, LoraConfig, MyNodeInfo, NodeInfo, Position, TextMessage, User,
+        ChannelInfo, DeviceState, LoraConfig, MyNodeInfo, NodeInfo, Position, TextMessage, User,
     };
+    use crate::state::{DeviceConfig, DeviceMetrics, PositionConfig, TelemetryData};
     use anyhow::{Context, Result};
 
     #[test]
@@ -257,6 +257,29 @@ mod state_tests {
         assert!(
             state.raw_lora_config.is_none() && state.raw_device_config.is_none(),
             "a reconnect must not write a previous radio's config to the current one"
+        );
+        Ok(())
+    }
+
+    /// The channel list drives slot allocation in `channel add` and is sent back verbatim
+    /// by `channel set`. Carrying it across a reconnect would let one radio's PSK be
+    /// written to another — the two Solar Nodes here share a tty, so that is routine.
+    #[test]
+    fn test_begin_config_dump_clears_channels() -> Result<()> {
+        let mut state = DeviceState::new();
+        state.update_channel(ChannelInfo {
+            index: 1,
+            name: "other-radio".to_string(),
+            role: "Secondary".to_string(),
+            has_psk: true,
+            settings: None,
+        });
+
+        state.begin_config_dump(1);
+
+        assert!(
+            state.channels.is_empty(),
+            "a reconnect must not offer the previous radio's channels"
         );
         Ok(())
     }
