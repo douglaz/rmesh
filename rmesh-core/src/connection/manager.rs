@@ -588,7 +588,10 @@ async fn process_from_radio_packet(
                         id: user.id.clone(),
                         long_name: user.long_name.clone(),
                         short_name: user.short_name.clone(),
-                        hw_model: Some(format!("{model:?}", model = user.hw_model())),
+                        // Not user.hw_model(): that accessor maps a board newer than the
+                        // vendored protobufs back to UNSET, so `info nodes` would report
+                        // every such radio as having no hardware model.
+                        hw_model: crate::state::hardware_model_name(user.hw_model),
                     },
                     last_heard: Some(last_heard),
                     last_heard_iso,
@@ -1044,14 +1047,25 @@ async fn process_config_response(
                 debug!("Updated network config");
             }
             meshtastic::protobufs::config::PayloadVariant::Display(display_config) => {
-                // compass_north_top is deprecated upstream in favour of compass_orientation,
-                // but the radio still sends it and rmesh still reports what the radio sends.
+                // One narrow allow per deprecated field, deliberately not one covering the
+                // whole struct: a blanket allow here silenced gps_format's own deprecation
+                // (upstream marked it Unused in 2.7.4) and hid that rmesh was reporting a
+                // dead field. Keep each suppression pinned to the field it excuses so the
+                // next deprecation still shows up as a build warning.
                 #[allow(deprecated)]
+                let gps_format = format!("{format:?}", format = display_config.gps_format());
+                #[allow(deprecated)]
+                let compass_north_top = display_config.compass_north_top;
+
                 let display = DisplayConfig {
                     screen_on_secs: display_config.screen_on_secs,
-                    gps_format: format!("{format:?}", format = display_config.gps_format()),
+                    gps_format,
                     auto_screen_carousel_secs: display_config.auto_screen_carousel_secs,
-                    compass_north_top: display_config.compass_north_top,
+                    compass_north_top,
+                    compass_orientation: format!(
+                        "{orientation:?}",
+                        orientation = display_config.compass_orientation()
+                    ),
                     flip_screen: display_config.flip_screen,
                     units: format!("{units:?}", units = display_config.units()),
                     displaymode: format!("{mode:?}", mode = display_config.displaymode()),
@@ -1066,7 +1080,7 @@ async fn process_config_response(
                 // protobufs adds regions, and an exhaustive match turns that into a build
                 // break. This also matches what the reference client prints, and what
                 // `config set lora.region` accepts back.
-                let region_str = lora_config.region().as_str_name();
+                let region_str = crate::state::region_name(lora_config.region);
 
                 state.lora_config = Some(LoraConfig {
                     use_preset: lora_config.use_preset,

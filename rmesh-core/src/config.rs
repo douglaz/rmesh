@@ -2,7 +2,7 @@ use crate::connection::ConnectionManager;
 use anyhow::{Result, bail, ensure};
 use meshtastic::{Message, protobufs};
 use serde_json::json;
-use tracing::debug;
+use tracing::{debug, warn};
 
 /// Get a configuration value by key
 pub async fn get_config_value(
@@ -437,6 +437,14 @@ fn parse_region(value: &str) -> Result<protobufs::config::lo_ra_config::RegionCo
     // Canonical protobuf names first, so every region the protobufs know is accepted
     // without listing it here — including whatever the next regen adds.
     if let Some(region) = RegionCode::from_str_name(&upper) {
+        // from_str_name accepts "UNSET", which the old hand-written table did not. Setting
+        // it parks the radio in a region where it will not transmit, so it needs to be an
+        // explicit refusal rather than something a typo can reach.
+        ensure!(
+            region != RegionCode::Unset,
+            "Refusing to set region UNSET: the radio will not transmit. \
+             Pass a real region such as US, EU_868 or ANZ."
+        );
         return Ok(region);
     }
 
@@ -469,7 +477,22 @@ fn parse_region(value: &str) -> Result<protobufs::config::lo_ra_config::RegionCo
 fn parse_role(value: &str) -> Result<protobufs::config::device_config::Role> {
     use protobufs::config::device_config::Role;
 
-    let role = match value.to_uppercase().as_str() {
+    let upper = value.to_uppercase();
+
+    // Canonical protobuf names first, for the same reason as parse_region: the hand-written
+    // table below had already fallen behind, rejecting ROUTER_LATE and CLIENT_BASE even
+    // though rmesh reports them when a peer uses them.
+    if let Some(role) = Role::from_str_name(&upper) {
+        if matches!(role, Role::Repeater | Role::RouterClient) {
+            warn!(
+                "Role {upper} is deprecated upstream and harms public meshes; \
+                 prefer ROUTER or CLIENT_BASE"
+            );
+        }
+        return Ok(role);
+    }
+
+    let role = match upper.as_str() {
         "CLIENT" => Role::Client,
         "CLIENT_MUTE" => Role::ClientMute,
         "ROUTER" => Role::Router,
@@ -485,4 +508,55 @@ fn parse_role(value: &str) -> Result<protobufs::config::device_config::Role> {
     };
 
     Ok(role)
+}
+
+#[cfg(test)]
+mod parse_tests {
+    use super::*;
+    use protobufs::config::device_config::Role;
+    use protobufs::config::lo_ra_config::RegionCode;
+
+    /// UNSET is a real region code meaning "will not transmit". `from_str_name` accepts the
+    /// string, so without an explicit refusal a typo can silence the radio.
+    #[test]
+    fn region_unset_is_refused() {
+        for spelling in ["unset", "UNSET", "Unset"] {
+            assert!(
+                parse_region(spelling).is_err(),
+                "{spelling} must not be settable"
+            );
+        }
+    }
+
+    #[test]
+    fn region_accepts_canonical_and_legacy_spellings() {
+        assert_eq!(parse_region("US").unwrap(), RegionCode::Us);
+        // canonical, as emitted by `config get`
+        assert_eq!(parse_region("EU_433").unwrap(), RegionCode::Eu433);
+        assert_eq!(parse_region("LORA_24").unwrap(), RegionCode::Lora24);
+        // spellings rmesh accepted before it emitted canonical names
+        assert_eq!(parse_region("eu433").unwrap(), RegionCode::Eu433);
+        assert_eq!(parse_region("LORA24").unwrap(), RegionCode::Lora24);
+        assert!(parse_region("NOT_A_REGION").is_err());
+    }
+
+    /// The hand-written table fell behind the protobufs: rmesh reported these roles when a
+    /// peer used them but refused to set them.
+    #[test]
+    fn role_accepts_roles_newer_than_the_hand_written_table() {
+        assert_eq!(parse_role("ROUTER_LATE").unwrap(), Role::RouterLate);
+        assert_eq!(parse_role("CLIENT_BASE").unwrap(), Role::ClientBase);
+    }
+
+    #[test]
+    fn role_accepts_existing_and_deprecated_names() {
+        assert_eq!(parse_role("client").unwrap(), Role::Client);
+        assert_eq!(parse_role("CLIENT_MUTE").unwrap(), Role::ClientMute);
+        // deprecated upstream, still settable so a device can be moved off them
+        #[allow(deprecated)]
+        {
+            assert_eq!(parse_role("REPEATER").unwrap(), Role::Repeater);
+        }
+        assert!(parse_role("NOT_A_ROLE").is_err());
+    }
 }
