@@ -38,4 +38,7 @@ comfy-table = "7.1"
 humantime = "2.1"
 chrono = { version = "0.4", features = ["serde"] }
 hex = "0.4"
+# PSKs are exchanged as base64 (that is what --export-config and channel URLs carry).
+# Hand-decoding an encryption key is not worth saving a dependency over.
+base64 = "0.22"
 strum = { version = "0.28", features = ["derive"] }

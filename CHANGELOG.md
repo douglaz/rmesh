@@ -32,21 +32,22 @@
   against now prints as `Unknown(<id>)` rather than `Unset`/`UNSET`. Those are real values
   meaning "not set", so reporting them for something merely unrecognised was misleading.
 
-### Removed
+### Fixed — channel commands
 
-- **`channel add`, `channel set` and `channel delete` now refuse with an explanation**
-  instead of sending a request. All three were unfinished and destructive, and were inert
-  only because admin packets were addressed to node 0 and discarded by the radio. Once that
-  was fixed they would have executed:
+- **`channel add`, `channel set` and `channel delete` now work.** All three were unfinished
+  and destructive, and were inert only because admin packets were addressed to node 0 and
+  discarded by the radio; correcting the address would have armed them.
   - `channel add` wrote index 0 with role PRIMARY — indices are explicit, not allocated by
-    the radio — so every add overwrote the primary channel, name and PSK included.
+    the radio — so every add overwrote the primary channel, name and PSK included. It now
+    allocates the lowest disabled slot and writes role SECONDARY.
   - `channel set` rebuilt the channel from defaults, so changing only `--name` erased the
-    PSK and forced the role to PRIMARY.
+    PSK and forced role PRIMARY. It now reads the channel from the radio and changes only
+    the fields given, preserving the role.
   - `channel delete N` sent `RemoveByNodenum(N)`, a NodeDB operation: the channel stayed
-    and a node numbered N was removed instead.
-
-  `channel list` is unaffected. Use the Meshtastic app or `meshtastic --ch-add`/`--ch-set`/
-  `--ch-del` until these are implemented properly.
+    and a node numbered N was removed instead. It now disables channel N, refuses index 0,
+    and reports a channel that is already disabled.
+- PSKs are decoded as base64 (or `none` to clear) rather than taken as raw bytes, which
+  silently produced an invalid key.
 
 ### Fixed
 
