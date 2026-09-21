@@ -29,6 +29,9 @@ pub async fn get_config_value(
     let session_key = connection.get_session_key().await.unwrap_or_default();
 
     // Send config request
+    // Admin messages are addressed to the radio itself, not 0.
+    let local_node = connection.local_node_num().await?;
+
     let api = connection.get_api()?;
 
     // Create the appropriate config request based on category
@@ -61,7 +64,7 @@ pub async fn get_config_value(
             },
         )),
         from: 0,
-        to: 0, // Local destination
+        to: local_node,
         id: 0,
         rx_time: 0,
         rx_snr: 0.0,
@@ -170,6 +173,9 @@ pub async fn set_config_value(
     // caller did not name — tx_power, hop_limit, channel_num and the rest.
     let state = connection.get_device_state().await;
 
+    // Admin messages are addressed to the radio itself, not 0.
+    let local_node = connection.local_node_num().await?;
+
     let api = connection.get_api()?;
 
     let parts: Vec<&str> = key.split('.').collect();
@@ -246,7 +252,7 @@ pub async fn set_config_value(
             },
         )),
         from: 0,
-        to: 0, // Local destination
+        to: local_node,
         id: 0,
         rx_time: 0,
         rx_snr: 0.0,
@@ -320,6 +326,9 @@ pub async fn list_config(connection: &mut ConnectionManager) -> Result<serde_jso
     // Get the session key
     let session_key = connection.get_session_key().await.unwrap_or_default();
 
+    // Admin messages are addressed to the radio itself, not 0.
+    let local_node = connection.local_node_num().await?;
+
     let api = connection.get_api()?;
 
     // Request all config types to get fresh data
@@ -352,7 +361,7 @@ pub async fn list_config(connection: &mut ConnectionManager) -> Result<serde_jso
                     ..Default::default()
                 },
             )),
-            to: 0, // Local destination
+            to: local_node,
             ..Default::default()
         };
 
