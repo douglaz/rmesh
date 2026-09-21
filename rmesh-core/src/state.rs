@@ -1,6 +1,34 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Render a protobuf hardware-model id.
+///
+/// Works from the raw `i32` rather than the generated accessor, which maps any value the
+/// vendored protobufs do not know back to `UNSET` — turning "this board is newer than the
+/// protobufs rmesh was built against" into "the radio does not know its own hardware".
+/// Returns `None` only for a genuine `UNSET`.
+pub fn hardware_model_name(raw: i32) -> Option<String> {
+    if raw == meshtastic::protobufs::HardwareModel::Unset as i32 {
+        return None;
+    }
+    Some(
+        meshtastic::protobufs::HardwareModel::try_from(raw)
+            .map(|hw| format!("{hw:?}"))
+            .unwrap_or_else(|_| format!("Unknown({raw})")),
+    )
+}
+
+/// Render a protobuf LoRa region id, for the same reason as [`hardware_model_name`].
+///
+/// An unknown region must not collapse to `UNSET`: that is a real region code meaning the
+/// radio will not transmit, so reporting it for a region rmesh simply cannot name would be
+/// actively misleading.
+pub fn region_name(raw: i32) -> String {
+    meshtastic::protobufs::config::lo_ra_config::RegionCode::try_from(raw)
+        .map(|region| region.as_str_name().to_string())
+        .unwrap_or_else(|_| format!("Unknown({raw})"))
+}
+
 /// Cached device state from received packets
 #[derive(Debug, Clone, Default)]
 pub struct DeviceState {
@@ -137,17 +165,10 @@ impl DeviceState {
     /// does, and reports `SEEED_SOLAR_NODE` only in metadata). Falls back to the NodeDB for
     /// a device whose metadata never arrived.
     pub fn hardware_model(&self) -> Option<String> {
-        let from_metadata = self.metadata.as_ref().and_then(|m| match m.hw_model {
-            0 => None, // UNSET
-            raw => Some(
-                meshtastic::protobufs::HardwareModel::try_from(raw)
-                    .map(|hw| format!("{hw:?}"))
-                    // The pinned protobufs lag the firmware — SEEED_SOLAR_NODE (95) has no
-                    // variant yet — and the generated accessor silently maps an unknown
-                    // value back to UNSET. Surface the number instead of losing it.
-                    .unwrap_or_else(|_| format!("Unknown({raw})")),
-            ),
-        });
+        let from_metadata = self
+            .metadata
+            .as_ref()
+            .and_then(|m| hardware_model_name(m.hw_model));
 
         from_metadata.or_else(|| {
             // Only the local node: any other entry describes somebody else's radio.
@@ -218,9 +239,14 @@ pub struct NetworkConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DisplayConfig {
     pub screen_on_secs: u32,
+    /// Deprecated upstream in 2.7.4 as unused. Reported because the radio still carries the
+    /// byte, but it does not describe anything the firmware acts on.
     pub gps_format: String,
     pub auto_screen_carousel_secs: u32,
+    /// Deprecated upstream in favour of `compass_orientation`, which is reported separately
+    /// rather than in its place — the two do not mean the same thing.
     pub compass_north_top: bool,
+    pub compass_orientation: String,
     pub flip_screen: bool,
     pub units: String,
     pub displaymode: String,

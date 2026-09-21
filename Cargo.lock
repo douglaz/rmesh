@@ -856,7 +856,7 @@ checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 [[package]]
 name = "meshtastic"
 version = "0.1.7"
-source = "git+https://github.com/douglaz/meshtastic-rust.git?branch=protobufs-v2.7.26#70047e4879e8c49751c088970d6307a9f91ec669"
+source = "git+https://github.com/douglaz/meshtastic-rust.git?rev=a78a028682d98e95540a44f3951b6478fa90fdc7#a78a028682d98e95540a44f3951b6478fa90fdc7"
 dependencies = [
  "bluez-async",
  "btleplug",
