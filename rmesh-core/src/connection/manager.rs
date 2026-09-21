@@ -76,6 +76,17 @@ impl ConnectionManager {
     pub async fn connect(&mut self) -> Result<()> {
         info!("Establishing connection to Meshtastic device...");
 
+        // Tear down any previous session first. Reconnecting without disconnecting left the
+        // old processor task running: it shares device_state, so packets still queued from
+        // the previous radio would land *after* begin_config_dump resets the state and
+        // repopulate it — including my_node_info, which admin writes address by.
+        if self.api.is_some() || self.packet_processor.is_some() {
+            debug!("Tearing down the previous connection before reconnecting");
+            if let Err(e) = self.disconnect().await {
+                debug!("Error while closing the previous connection: {e}");
+            }
+        }
+
         // Create StreamApi instance
         let stream_api = StreamApi::new();
 
@@ -1196,6 +1207,35 @@ async fn process_config_response(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Reconnecting without disconnecting must not leave the previous processor running:
+    /// it shares `device_state` and would write the old radio's queued packets into the
+    /// state the new dump has just reset.
+    #[tokio::test]
+    async fn reconnect_stops_the_previous_packet_processor() {
+        let mut manager = ConnectionManager::new(None, None, Duration::from_secs(1))
+            .await
+            .expect("manager");
+
+        // Stand in for a live session: a task holding device_state, as the real processor
+        // does, plus the handle connect() checks.
+        let state = manager.get_device_state_ref();
+        let handle = tokio::spawn(async move {
+            loop {
+                state.lock().await.config_complete = true;
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        });
+        manager.packet_processor = Some(handle);
+
+        // connect() fails here (no port), but only after the teardown it now performs.
+        let _ = manager.connect().await;
+
+        assert!(
+            manager.packet_processor.is_none(),
+            "the previous processor must be shut down before a new session starts"
+        );
+    }
 
     /// Feed a single FromRadio payload through the handler against a fresh state.
     async fn feed(
