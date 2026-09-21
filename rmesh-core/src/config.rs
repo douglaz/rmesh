@@ -66,6 +66,9 @@ pub async fn get_config_value(
             protobufs::Data {
                 portnum: protobufs::PortNum::AdminApp as i32,
                 payload: admin_msg.encode_to_vec(),
+                // Without this the radio never replies, so the wait below can only ever
+                // time out. It was invisible while a cached value was returned instead.
+                want_response: true,
                 ..Default::default()
             },
         )),
