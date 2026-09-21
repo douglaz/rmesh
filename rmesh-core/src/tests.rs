@@ -88,8 +88,121 @@ mod state_tests {
         Ok(())
     }
 
-    /// `disconnect` leaves DeviceState intact, so a second `connect` must not inherit the
-    /// previous session's completion flag and skip waiting for its own dump.
+    /// Builds a state whose local node reports `hw_model` UNSET and whose NodeDB also holds
+    /// a neighbour with a real board — the shape that made both call sites wrong.
+    fn state_with_unset_local_hw_model() -> DeviceState {
+        let mut state = DeviceState::new();
+        state.set_my_node_info(MyNodeInfo {
+            node_num: 0x608c440e,
+            node_id: "608c440e".to_string(),
+            reboot_count: 0,
+            min_app_version: 30200,
+            device_id: "abc".to_string(),
+        });
+        let node = |num: u32, hw: &str| NodeInfo {
+            id: format!("{num:08x}"),
+            num,
+            user: User {
+                id: format!("!{num:08x}"),
+                long_name: "n".to_string(),
+                short_name: "n".to_string(),
+                hw_model: Some(hw.to_string()),
+            },
+            last_heard: None,
+            last_heard_iso: None,
+            snr: None,
+            rssi: None,
+        };
+        state.update_node(0x608c440e, node(0x608c440e, "Unset"));
+        state.update_node(0x16cfa1c8, node(0x16cfa1c8, "StationG2"));
+        state
+    }
+
+    /// A board that leaves hw_model UNSET in its own NodeDB entry reports the real value
+    /// only in DeviceMetadata, so metadata has to win.
+    #[test]
+    fn test_hardware_model_prefers_metadata_over_unset_nodedb() -> Result<()> {
+        let mut state = state_with_unset_local_hw_model();
+        state.metadata = Some(meshtastic::protobufs::DeviceMetadata {
+            hw_model: meshtastic::protobufs::HardwareModel::TrackerT1000E as i32,
+            ..Default::default()
+        });
+
+        assert_eq!(
+            state.hardware_model().as_deref(),
+            Some("TrackerT1000E"),
+            "metadata must override an UNSET NodeDB entry"
+        );
+        Ok(())
+    }
+
+    /// The real Seeed Solar Node case: hw_model 95 postdates the pinned protobufs, and the
+    /// generated accessor maps an unrecognised value back to UNSET. The raw number has to
+    /// survive, or the board silently reads as "Unknown".
+    #[test]
+    fn test_hardware_model_surfaces_a_board_newer_than_the_protobufs() -> Result<()> {
+        const SEEED_SOLAR_NODE: i32 = 95;
+        let mut state = state_with_unset_local_hw_model();
+        state.metadata = Some(meshtastic::protobufs::DeviceMetadata {
+            hw_model: SEEED_SOLAR_NODE,
+            ..Default::default()
+        });
+
+        assert_eq!(
+            state.hardware_model().as_deref(),
+            Some("Unknown(95)"),
+            "a board the protobufs do not know must still report its id"
+        );
+        Ok(())
+    }
+
+    /// Without metadata there is nothing to report for this device — and in particular the
+    /// neighbour's board must never be substituted for it.
+    ///
+    /// The local node is deliberately absent from the NodeDB rather than present-but-UNSET:
+    /// with both present, a scan-any-node implementation only returns the wrong board on
+    /// the HashMap orderings that happen to visit the neighbour first, so the test would
+    /// pass against the very bug it exists to catch. Leaving exactly one entry makes it
+    /// deterministic.
+    #[test]
+    fn test_hardware_model_never_reports_another_node() -> Result<()> {
+        let mut state = state_with_unset_local_hw_model();
+        state.nodes.remove(&0x608c440e);
+
+        assert_eq!(
+            state.hardware_model(),
+            None,
+            "a missing local entry must not fall through to another node's hardware"
+        );
+        Ok(())
+    }
+
+    /// A board that does populate its own NodeDB entry still works when metadata is absent.
+    #[test]
+    fn test_hardware_model_falls_back_to_local_nodedb() -> Result<()> {
+        let mut state = state_with_unset_local_hw_model();
+        state.update_node(
+            0x608c440e,
+            NodeInfo {
+                id: "608c440e".to_string(),
+                num: 0x608c440e,
+                user: User {
+                    id: "!608c440e".to_string(),
+                    long_name: "n".to_string(),
+                    short_name: "n".to_string(),
+                    hw_model: Some("TrackerT1000E".to_string()),
+                },
+                last_heard: None,
+                last_heard_iso: None,
+                snr: None,
+                rssi: None,
+            },
+        );
+
+        assert_eq!(state.hardware_model().as_deref(), Some("TrackerT1000E"));
+        Ok(())
+    }
+
     #[test]
     fn test_begin_config_dump_clears_previous_completion() -> Result<()> {
         let mut state = DeviceState::new();

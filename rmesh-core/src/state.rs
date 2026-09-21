@@ -130,6 +130,37 @@ impl DeviceState {
         self.metadata = None;
     }
 
+    /// The local radio's hardware model.
+    ///
+    /// Prefers `DeviceMetadata`, which always carries the real board, over the local node's
+    /// own NodeDB entry — some boards leave `hw_model` UNSET there (the Seeed Solar Node
+    /// does, and reports `SEEED_SOLAR_NODE` only in metadata). Falls back to the NodeDB for
+    /// a device whose metadata never arrived.
+    pub fn hardware_model(&self) -> Option<String> {
+        let from_metadata = self.metadata.as_ref().and_then(|m| match m.hw_model {
+            0 => None, // UNSET
+            raw => Some(
+                meshtastic::protobufs::HardwareModel::try_from(raw)
+                    .map(|hw| format!("{hw:?}"))
+                    // The pinned protobufs lag the firmware — SEEED_SOLAR_NODE (95) has no
+                    // variant yet — and the generated accessor silently maps an unknown
+                    // value back to UNSET. Surface the number instead of losing it.
+                    .unwrap_or_else(|_| format!("Unknown({raw})")),
+            ),
+        });
+
+        from_metadata.or_else(|| {
+            // Only the local node: any other entry describes somebody else's radio.
+            let my_num = self.my_node_info.as_ref()?.node_num;
+            self.nodes
+                .get(&my_num)?
+                .user
+                .hw_model
+                .clone()
+                .filter(|hw| hw != "Unset")
+        })
+    }
+
     pub fn get_node_by_id(&self, node_id: &str) -> Option<&NodeInfo> {
         self.nodes.values().find(|n| n.id == node_id)
     }
