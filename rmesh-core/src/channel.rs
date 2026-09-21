@@ -1,8 +1,6 @@
 use crate::connection::ConnectionManager;
-use anyhow::Result;
-use meshtastic::{Message, protobufs};
+use anyhow::{Result, bail};
 use serde::Serialize;
-use tracing::debug;
 
 /// List all channels configured on the device
 pub async fn list_channels(connection: &ConnectionManager) -> Result<Vec<ChannelInfo>> {
@@ -30,129 +28,33 @@ pub async fn add_channel(
     name: &str,
     psk: Option<&str>,
 ) -> Result<()> {
-    // Try to get a session key, but continue even if it fails
-    // Some devices may not require authentication
-    if let Err(e) = connection.ensure_session_key().await {
-        debug!("Failed to get session key (may not be required): {e}");
-    }
-
-    // Get the session key
-    let session_key = connection.get_session_key().await.unwrap_or_default();
-
-    // Admin messages are addressed to the radio itself, not 0.
-    let local_node = connection.local_node_num().await?;
-
-    let api = connection.get_api()?;
-
-    // Create channel settings
-    let mut settings = protobufs::ChannelSettings {
-        name: name.to_string(),
-        ..Default::default()
-    };
-
-    // Set pre-shared key if provided
-    if let Some(key) = psk {
-        settings.psk = key.as_bytes().to_vec();
-    }
-
-    // Create admin message for channel add
-    let admin_msg = protobufs::AdminMessage {
-        payload_variant: Some(protobufs::admin_message::PayloadVariant::SetChannel(
-            protobufs::Channel {
-                index: 0, // Will be assigned by device
-                settings: Some(settings),
-                role: protobufs::channel::Role::Primary as i32,
-            },
-        )),
-        session_passkey: session_key,
-    };
-
-    // Create mesh packet
-    let mesh_packet = protobufs::MeshPacket {
-        payload_variant: Some(protobufs::mesh_packet::PayloadVariant::Decoded(
-            protobufs::Data {
-                portnum: protobufs::PortNum::AdminApp as i32,
-                payload: admin_msg.encode_to_vec(),
-                ..Default::default()
-            },
-        )),
-        from: 0,
-        to: local_node,
-        id: 0,
-        rx_time: 0,
-        rx_snr: 0.0,
-        hop_limit: 0,
-        want_ack: false,
-        priority: protobufs::mesh_packet::Priority::Default as i32,
-        rx_rssi: 0,
-        via_mqtt: false,
-        hop_start: 0,
-        ..Default::default()
-    };
-
-    // Send as ToRadio packet
-    api.send_to_radio_packet(Some(protobufs::to_radio::PayloadVariant::Packet(
-        mesh_packet,
-    )))
-    .await?;
-
-    Ok(())
+    // NOT IMPLEMENTED, deliberately. The previous body wrote a Channel with index 0 and
+    // role PRIMARY. Channel indices are explicit — the radio does not allocate them — so
+    // every "add" overwrote the primary channel, replacing its name and PSK and dropping
+    // the radio off its mesh. That was inert only while admin packets were addressed to
+    // node 0 and discarded; addressing them correctly turns it into data loss.
+    //
+    // Doing it properly means allocating a free index and writing role SECONDARY. That is
+    // not shipped here because it cannot be exercised without mutating a radio's real
+    // channels, and an untested write of this shape is exactly what caused the problem.
+    let _ = (&connection, name, psk);
+    bail!(
+        "`channel add` is not implemented. The request it used to send would overwrite \
+         the primary channel and its PSK. Use the Meshtastic app, or `meshtastic --ch-add`."
+    )
 }
 
 /// Delete a channel
 pub async fn delete_channel(connection: &mut ConnectionManager, index: u32) -> Result<()> {
-    // Try to get a session key, but continue even if it fails
-    // Some devices may not require authentication
-    if let Err(e) = connection.ensure_session_key().await {
-        debug!("Failed to get session key (may not be required): {e}");
-    }
-
-    // Get the session key
-    let session_key = connection.get_session_key().await.unwrap_or_default();
-
-    // Admin messages are addressed to the radio itself, not 0.
-    let local_node = connection.local_node_num().await?;
-
-    let api = connection.get_api()?;
-
-    // Create admin message for channel delete
-    let admin_msg = protobufs::AdminMessage {
-        payload_variant: Some(protobufs::admin_message::PayloadVariant::RemoveByNodenum(
-            index,
-        )),
-        session_passkey: session_key,
-    };
-
-    // Create mesh packet
-    let mesh_packet = protobufs::MeshPacket {
-        payload_variant: Some(protobufs::mesh_packet::PayloadVariant::Decoded(
-            protobufs::Data {
-                portnum: protobufs::PortNum::AdminApp as i32,
-                payload: admin_msg.encode_to_vec(),
-                ..Default::default()
-            },
-        )),
-        from: 0,
-        to: local_node,
-        id: 0,
-        rx_time: 0,
-        rx_snr: 0.0,
-        hop_limit: 0,
-        want_ack: false,
-        priority: protobufs::mesh_packet::Priority::Default as i32,
-        rx_rssi: 0,
-        via_mqtt: false,
-        hop_start: 0,
-        ..Default::default()
-    };
-
-    // Send as ToRadio packet
-    api.send_to_radio_packet(Some(protobufs::to_radio::PayloadVariant::Packet(
-        mesh_packet,
-    )))
-    .await?;
-
-    Ok(())
+    // NOT IMPLEMENTED, deliberately. The previous body sent RemoveByNodenum(index), which
+    // acts on the NodeDB rather than on channels: the channel stayed configured and a node
+    // whose number happened to equal the index was removed instead. Deleting a channel
+    // means SetChannel for that index with role DISABLED.
+    let _ = (&connection, index);
+    bail!(
+        "`channel delete` is not implemented. The request it used to send removes a NODE \
+         with that number, not the channel. Use the Meshtastic app, or `meshtastic --ch-del`."
+    )
 }
 
 /// Set channel configuration
@@ -162,73 +64,15 @@ pub async fn set_channel(
     name: Option<&str>,
     psk: Option<&str>,
 ) -> Result<()> {
-    // Try to get a session key, but continue even if it fails
-    // Some devices may not require authentication
-    if let Err(e) = connection.ensure_session_key().await {
-        debug!("Failed to get session key (may not be required): {e}");
-    }
-
-    // Get the session key
-    let session_key = connection.get_session_key().await.unwrap_or_default();
-
-    // Admin messages are addressed to the radio itself, not 0.
-    let local_node = connection.local_node_num().await?;
-
-    let api = connection.get_api()?;
-
-    // Create channel settings
-    let mut settings = protobufs::ChannelSettings::default();
-
-    if let Some(n) = name {
-        settings.name = n.to_string();
-    }
-
-    if let Some(key) = psk {
-        settings.psk = key.as_bytes().to_vec();
-    }
-
-    // Create admin message for channel set
-    let admin_msg = protobufs::AdminMessage {
-        payload_variant: Some(protobufs::admin_message::PayloadVariant::SetChannel(
-            protobufs::Channel {
-                index: index as i32,
-                settings: Some(settings),
-                role: protobufs::channel::Role::Primary as i32,
-            },
-        )),
-        session_passkey: session_key,
-    };
-
-    // Create mesh packet
-    let mesh_packet = protobufs::MeshPacket {
-        payload_variant: Some(protobufs::mesh_packet::PayloadVariant::Decoded(
-            protobufs::Data {
-                portnum: protobufs::PortNum::AdminApp as i32,
-                payload: admin_msg.encode_to_vec(),
-                ..Default::default()
-            },
-        )),
-        from: 0,
-        to: local_node,
-        id: 0,
-        rx_time: 0,
-        rx_snr: 0.0,
-        hop_limit: 0,
-        want_ack: false,
-        priority: protobufs::mesh_packet::Priority::Default as i32,
-        rx_rssi: 0,
-        via_mqtt: false,
-        hop_start: 0,
-        ..Default::default()
-    };
-
-    // Send as ToRadio packet
-    api.send_to_radio_packet(Some(protobufs::to_radio::PayloadVariant::Packet(
-        mesh_packet,
-    )))
-    .await?;
-
-    Ok(())
+    // NOT IMPLEMENTED, deliberately. The previous body rebuilt the channel from defaults
+    // and hard-coded role PRIMARY, so changing only --name sent an empty PSK and default
+    // uplink/downlink: a rename erased the channel's credentials. A correct version reads
+    // the cached channel and modifies only the named fields.
+    let _ = (&connection, index, name, psk);
+    bail!(
+        "`channel set` is not implemented. The request it used to send replaces the whole \
+         channel from defaults, erasing its PSK. Use the Meshtastic app, or `meshtastic --ch-set`."
+    )
 }
 
 #[derive(Debug, Clone, Serialize)]

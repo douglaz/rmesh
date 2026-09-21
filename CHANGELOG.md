@@ -32,6 +32,22 @@
   against now prints as `Unknown(<id>)` rather than `Unset`/`UNSET`. Those are real values
   meaning "not set", so reporting them for something merely unrecognised was misleading.
 
+### Removed
+
+- **`channel add`, `channel set` and `channel delete` now refuse with an explanation**
+  instead of sending a request. All three were unfinished and destructive, and were inert
+  only because admin packets were addressed to node 0 and discarded by the radio. Once that
+  was fixed they would have executed:
+  - `channel add` wrote index 0 with role PRIMARY — indices are explicit, not allocated by
+    the radio — so every add overwrote the primary channel, name and PSK included.
+  - `channel set` rebuilt the channel from defaults, so changing only `--name` erased the
+    PSK and forced the role to PRIMARY.
+  - `channel delete N` sent `RemoveByNodenum(N)`, a NodeDB operation: the channel stayed
+    and a node numbered N was removed instead.
+
+  `channel list` is unaffected. Use the Meshtastic app or `meshtastic --ch-add`/`--ch-set`/
+  `--ch-del` until these are implemented properly.
+
 ### Fixed
 
 - `info radio` reported the firmware version from `min_app_version` (the minimum *client
