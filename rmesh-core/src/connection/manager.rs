@@ -993,6 +993,7 @@ async fn process_config_response(
     if let Some(payload) = config.payload_variant {
         match payload {
             meshtastic::protobufs::config::PayloadVariant::Device(device_config) => {
+                state.raw_device_config = Some(device_config.clone());
                 state.device_config = Some(DeviceConfig {
                     role: format!("{role:?}", role = device_config.role()),
                     button_gpio: device_config.button_gpio,
@@ -1076,6 +1077,7 @@ async fn process_config_response(
                 debug!("Updated display config");
             }
             meshtastic::protobufs::config::PayloadVariant::Lora(lora_config) => {
+                state.raw_lora_config = Some(lora_config.clone());
                 // The protobuf name, rather than a hand-written table: every regen of the
                 // protobufs adds regions, and an exhaustive match turns that into a build
                 // break. This also matches what the reference client prints, and what

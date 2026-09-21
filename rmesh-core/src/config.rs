@@ -1,5 +1,5 @@
 use crate::connection::ConnectionManager;
-use anyhow::{Result, bail, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use meshtastic::{Message, protobufs};
 use serde_json::json;
 use tracing::{debug, warn};
@@ -165,6 +165,11 @@ pub async fn set_config_value(
     // Get the session key
     let session_key = connection.get_session_key().await.unwrap_or_default();
 
+    // SetConfig replaces the whole sub-message, so the payload has to start from what the
+    // radio currently has. Building it from Default would silently blank every field the
+    // caller did not name — tx_power, hop_limit, channel_num and the rest.
+    let state = connection.get_device_state().await;
+
     let api = connection.get_api()?;
 
     let parts: Vec<&str> = key.split('.').collect();
@@ -177,17 +182,18 @@ pub async fn set_config_value(
     let field = parts[1];
 
     // Create admin message for config change
-    let admin_msg = match category {
+    let (admin_msg, expected) = match category {
         "lora" => {
             match field {
                 "region" => {
                     // Parse region enum
                     let region = parse_region(value)?;
-                    let config = protobufs::config::LoRaConfig {
-                        region: region as i32,
-                        ..Default::default()
-                    };
-                    protobufs::AdminMessage {
+                    let mut config = state.raw_lora_config.clone().context(
+                        "No LoRa config received from the device, so changing one field \
+                         would blank the rest. Reconnect and retry.",
+                    )?;
+                    config.region = region as i32;
+                    let msg = protobufs::AdminMessage {
                         payload_variant: Some(protobufs::admin_message::PayloadVariant::SetConfig(
                             protobufs::Config {
                                 payload_variant: Some(protobufs::config::PayloadVariant::Lora(
@@ -196,7 +202,8 @@ pub async fn set_config_value(
                             },
                         )),
                         session_passkey: session_key.clone(),
-                    }
+                    };
+                    (msg, ExpectedConfig::Region(region as i32))
                 }
                 _ => bail!("Unknown lora field: {field}"),
             }
@@ -206,11 +213,12 @@ pub async fn set_config_value(
                 "role" => {
                     // Parse role enum
                     let role = parse_role(value)?;
-                    let config = protobufs::config::DeviceConfig {
-                        role: role as i32,
-                        ..Default::default()
-                    };
-                    protobufs::AdminMessage {
+                    let mut config = state.raw_device_config.clone().context(
+                        "No device config received from the device, so changing one field \
+                         would blank the rest. Reconnect and retry.",
+                    )?;
+                    config.role = role as i32;
+                    let msg = protobufs::AdminMessage {
                         payload_variant: Some(protobufs::admin_message::PayloadVariant::SetConfig(
                             protobufs::Config {
                                 payload_variant: Some(protobufs::config::PayloadVariant::Device(
@@ -219,7 +227,8 @@ pub async fn set_config_value(
                             },
                         )),
                         session_passkey: session_key.clone(),
-                    }
+                    };
+                    (msg, ExpectedConfig::Role(role as i32))
                 }
                 _ => bail!("Unknown device field: {field}"),
             }
@@ -255,6 +264,47 @@ pub async fn set_config_value(
         mesh_packet,
     )))
     .await?;
+
+    // Read the setting back. Sending the packet only means the bytes left the host: the
+    // radio rejects admin writes it will not authorise and says nothing the write path
+    // sees, so reporting success here would be reporting that we typed, not that anything
+    // changed.
+    verify_config_value(connection, category, field, &expected).await
+}
+
+/// What a `set` should be able to read back afterwards.
+enum ExpectedConfig {
+    Region(i32),
+    Role(i32),
+}
+
+/// Re-read the config from the radio and confirm the write landed.
+async fn verify_config_value(
+    connection: &mut ConnectionManager,
+    category: &str,
+    field: &str,
+    expected: &ExpectedConfig,
+) -> Result<()> {
+    // Ask for the sub-message again and let the reply be processed.
+    let key = format!("{category}.{field}");
+    let _ = get_config_value(connection, &key).await?;
+
+    let state = connection.get_device_state().await;
+    let actual = match expected {
+        ExpectedConfig::Region(_) => state.raw_lora_config.as_ref().map(|c| c.region),
+        ExpectedConfig::Role(_) => state.raw_device_config.as_ref().map(|c| c.role),
+    };
+    let wanted = match expected {
+        ExpectedConfig::Region(v) | ExpectedConfig::Role(v) => *v,
+    };
+
+    let actual = actual
+        .context("Device sent no configuration back, so the change could not be confirmed")?;
+    ensure!(
+        actual == wanted,
+        "Device did not apply {key}: it still reports {actual} rather than {wanted}. \
+         Admin writes usually need an authorised admin key for this radio."
+    );
 
     Ok(())
 }
