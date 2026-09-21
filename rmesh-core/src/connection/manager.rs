@@ -188,6 +188,9 @@ impl ConnectionManager {
         // Store the configured API
         self.api = Some(configured_api);
 
+        // Same reasoning as in `disconnect`, for a manager that is reconnected without one.
+        self.clear_session_key().await;
+
         // Record which dump we are waiting for before any packet can be processed.
         // `disconnect` leaves device_state intact, so a reconnect would otherwise inherit
         // the previous session's completion flag and skip the wait entirely.
@@ -290,6 +293,12 @@ impl ConnectionManager {
         if let Some(api) = self.api.take() {
             api.disconnect().await?;
         }
+
+        // The passkey authorises admin writes against the radio that issued it. Keeping it
+        // would let `ensure_session_key` short-circuit on the next connection and send one
+        // radio's credential to another, which that radio rejects — silently, on the paths
+        // that do not read anything back.
+        self.clear_session_key().await;
 
         Ok(())
     }

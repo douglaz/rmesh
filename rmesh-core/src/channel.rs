@@ -191,6 +191,7 @@ async fn send_channel(
 ) -> Result<()> {
     let index = channel.index as u32;
     let expected_role = channel.role;
+    let expected_settings = channel.settings.clone();
 
     if let Err(e) = connection.ensure_session_key().await {
         debug!("Failed to get session key (may not be required): {e}");
@@ -224,7 +225,7 @@ async fn send_channel(
     )))
     .await?;
 
-    verify_channel(connection, index, expected_role).await
+    verify_channel(connection, index, expected_role, expected_settings.as_ref()).await
 }
 
 /// Read the channel back and confirm the write landed.
@@ -236,6 +237,7 @@ async fn verify_channel(
     connection: &mut ConnectionManager,
     index: u32,
     expected_role: i32,
+    expected_settings: Option<&protobufs::ChannelSettings>,
 ) -> Result<()> {
     // Drop the cached slot, so whatever comes back must be from this readback.
     connection
@@ -296,6 +298,27 @@ async fn verify_channel(
                  Admin writes usually need an authorised admin key for this radio.",
                 role = ch.role
             );
+
+            // The role alone proves nothing for `set`, which preserves it deliberately: a
+            // radio that rejects a name or PSK returns the unchanged channel with the same
+            // role, and comparing only that would call the write a success.
+            if let Some(want) = expected_settings {
+                let got = ch
+                    .settings
+                    .as_ref()
+                    .context("Radio returned channel {index} with no settings")?;
+                ensure!(
+                    got.name == want.name,
+                    "Device did not apply the name for channel {index}: it reports {got_name:?}, \
+                     not {want_name:?}",
+                    got_name = got.name,
+                    want_name = want.name
+                );
+                ensure!(
+                    got.psk == want.psk,
+                    "Device did not apply the PSK for channel {index}"
+                );
+            }
             return Ok(());
         }
         tokio::time::sleep(std::time::Duration::from_millis(20)).await;

@@ -171,6 +171,11 @@ impl DeviceState {
         // sends the cached settings back, so a previous radio's list would let one radio's
         // PSK be written to another.
         self.channels.clear();
+        // And the identity. Admin messages take their destination from this, so a stale
+        // copy would address a reboot or a config write to the *previous* radio's node
+        // number. Clearing it makes those calls fail until the current radio says who it
+        // is, which is the safe direction.
+        self.my_node_info = None;
     }
 
     /// Forget one channel slot, so a readback has to come from the radio.
