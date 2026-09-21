@@ -28,6 +28,15 @@ pub async fn get_config_value(
     // Get the session key
     let session_key = connection.get_session_key().await.unwrap_or_default();
 
+    // Drop the cached copy first. Otherwise a reply that arrives late is indistinguishable
+    // from one that never came, and the caller reads the previous value believing it is
+    // current — which made `config set` verification report failure on a successful write.
+    connection
+        .get_device_state_ref()
+        .lock()
+        .await
+        .invalidate_config(category);
+
     // Send config request
     let api = connection.get_api()?;
 
@@ -80,8 +89,17 @@ pub async fn get_config_value(
     )))
     .await?;
 
-    // Wait a moment for the response to be processed
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    // Wait for the reply rather than guessing at a delay. A fixed sleep is not a signal:
+    // on a slow serial or BLE link the response lands after it, and the caller then reads
+    // stale state as though the radio had answered.
+    let deadline = connection.timeout();
+    let start = std::time::Instant::now();
+    while start.elapsed() < deadline {
+        if connection.get_device_state().await.has_config(category) {
+            break;
+        }
+        tokio::time::sleep(tokio::time::Duration::from_millis(20)).await;
+    }
 
     // Get the cached config from device state
     let state = connection.get_device_state().await;
@@ -115,6 +133,25 @@ pub async fn get_config_value(
                     "gps_enabled" => json!(config.gps_enabled),
                     "gps_mode" => json!(config.gps_mode),
                     _ => bail!("Unknown position config field: {field}"),
+                }
+            } else {
+                json!(null)
+            }
+        }
+        "display" => {
+            if let Some(config) = &state.display_config {
+                match field {
+                    "screen_on_secs" => json!(config.screen_on_secs),
+                    "gps_format" => json!(config.gps_format),
+                    "auto_screen_carousel_secs" => json!(config.auto_screen_carousel_secs),
+                    "compass_north_top" => json!(config.compass_north_top),
+                    "compass_orientation" => json!(config.compass_orientation),
+                    "flip_screen" => json!(config.flip_screen),
+                    "units" => json!(config.units),
+                    "displaymode" => json!(config.displaymode),
+                    "heading_bold" => json!(config.heading_bold),
+                    "wake_on_tap_or_motion" => json!(config.wake_on_tap_or_motion),
+                    _ => bail!("Unknown display config field: {field}"),
                 }
             } else {
                 json!(null)
@@ -431,6 +468,7 @@ pub async fn list_config(connection: &mut ConnectionManager) -> Result<serde_jso
             "gps_format": display_cfg.gps_format,
             "auto_screen_carousel_secs": display_cfg.auto_screen_carousel_secs,
             "compass_north_top": display_cfg.compass_north_top,
+            "compass_orientation": display_cfg.compass_orientation,
             "flip_screen": display_cfg.flip_screen,
             "units": display_cfg.units,
             "displaymode": display_cfg.displaymode,

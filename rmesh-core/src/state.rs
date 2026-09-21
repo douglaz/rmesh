@@ -161,6 +161,47 @@ impl DeviceState {
         self.want_config_id = Some(config_id);
         self.config_complete = false;
         self.metadata = None;
+        // Every cache that describes *which radio this is* has to go too. These feed the
+        // read-modify-write in `config set`, so a leftover copy could send one radio's
+        // complete sub-message to a different one — the two Solar Nodes here swap onto the
+        // same tty, so that is a real sequence, not a hypothetical.
+        self.raw_lora_config = None;
+        self.raw_device_config = None;
+    }
+
+    /// Forget the cached copy of one config sub-message, so the next read has to come from
+    /// the radio rather than from whatever is already in hand.
+    pub fn invalidate_config(&mut self, category: &str) {
+        match category {
+            "device" => {
+                self.device_config = None;
+                self.raw_device_config = None;
+            }
+            "lora" => {
+                self.lora_config = None;
+                self.raw_lora_config = None;
+            }
+            "position" => self.position_config = None,
+            "power" => self.power_config = None,
+            "network" => self.network_config = None,
+            "display" => self.display_config = None,
+            "bluetooth" => self.bluetooth_config = None,
+            _ => {}
+        }
+    }
+
+    /// Whether the radio has since sent the sub-message named by `category`.
+    pub fn has_config(&self, category: &str) -> bool {
+        match category {
+            "device" => self.device_config.is_some(),
+            "lora" => self.lora_config.is_some(),
+            "position" => self.position_config.is_some(),
+            "power" => self.power_config.is_some(),
+            "network" => self.network_config.is_some(),
+            "display" => self.display_config.is_some(),
+            "bluetooth" => self.bluetooth_config.is_some(),
+            _ => false,
+        }
     }
 
     /// The local radio's hardware model.

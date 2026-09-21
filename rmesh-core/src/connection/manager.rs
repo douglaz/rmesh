@@ -298,6 +298,11 @@ impl ConnectionManager {
         self.api.as_mut().context("Not connected")
     }
 
+    /// How long callers may wait on the radio, from `--timeout`.
+    pub fn timeout(&self) -> Duration {
+        self.timeout
+    }
+
     pub async fn get_device_state(&self) -> DeviceState {
         self.device_state.lock().await.clone()
     }

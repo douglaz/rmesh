@@ -1,7 +1,9 @@
 #[cfg(test)]
 mod state_tests {
     use crate::state::{DeviceConfig, DeviceMetrics, PositionConfig, TelemetryData};
-    use crate::state::{DeviceState, MyNodeInfo, NodeInfo, Position, TextMessage, User};
+    use crate::state::{
+        DeviceState, LoraConfig, MyNodeInfo, NodeInfo, Position, TextMessage, User,
+    };
     use anyhow::{Context, Result};
 
     #[test]
@@ -234,6 +236,59 @@ mod state_tests {
         assert!(
             state.metadata.is_none(),
             "a dump that omits metadata must report Unknown, not the earlier firmware"
+        );
+        Ok(())
+    }
+
+    /// The raw sub-messages feed the read-modify-write in `config set`. A leftover copy
+    /// would let one radio's complete config be written to whichever radio is attached
+    /// next — the two Solar Nodes here share a tty, so that sequence is routine.
+    #[test]
+    fn test_begin_config_dump_clears_raw_configs() -> Result<()> {
+        let mut state = DeviceState::new();
+        state.raw_lora_config = Some(meshtastic::protobufs::config::LoRaConfig {
+            tx_power: 30,
+            ..Default::default()
+        });
+        state.raw_device_config = Some(meshtastic::protobufs::config::DeviceConfig::default());
+
+        state.begin_config_dump(1);
+
+        assert!(
+            state.raw_lora_config.is_none() && state.raw_device_config.is_none(),
+            "a reconnect must not write a previous radio's config to the current one"
+        );
+        Ok(())
+    }
+
+    /// `config get` invalidates before requesting so a late reply cannot be mistaken for a
+    /// fresh one; the read path has to actually observe the sub-message going away.
+    #[test]
+    fn test_invalidate_config_clears_both_views() -> Result<()> {
+        let mut state = DeviceState::new();
+        state.raw_lora_config = Some(meshtastic::protobufs::config::LoRaConfig::default());
+        state.lora_config = Some(LoraConfig {
+            use_preset: true,
+            modem_preset: "LONG_FAST".to_string(),
+            bandwidth: 250,
+            spread_factor: 11,
+            coding_rate: 5,
+            frequency_offset: 0.0,
+            region: "ANZ".to_string(),
+            hop_limit: 3,
+            tx_enabled: true,
+            tx_power: 30,
+            channel_num: 0,
+            ignore_mqtt: false,
+        });
+        assert!(state.has_config("lora"));
+
+        state.invalidate_config("lora");
+
+        assert!(!state.has_config("lora"), "parsed view must be cleared");
+        assert!(
+            state.raw_lora_config.is_none(),
+            "raw view must be cleared too, or the write path still sees stale data"
         );
         Ok(())
     }
