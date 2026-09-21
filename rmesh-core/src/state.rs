@@ -151,31 +151,21 @@ impl DeviceState {
         self.my_node_info = Some(info);
     }
 
-    /// Start waiting for the configuration dump identified by `config_id`.
+    /// Start waiting for the configuration dump identified by `config_id`, discarding
+    /// everything known about the previous connection.
     ///
-    /// These fields have to move together. Leaving `config_complete` set from an earlier
-    /// session would let a reconnect skip the wait for its own dump, and keeping the
-    /// previous `metadata` would let a dump that omits it — or times out before it
-    /// arrives — report the *earlier* firmware version rather than `Unknown`.
+    /// Every field in `DeviceState` describes the radio on the other end, so none of it may
+    /// outlive the dump that produced it. Enumerating the fields to clear has now failed
+    /// five separate times — `metadata`, the raw write caches, the channel list,
+    /// `my_node_info` and the parsed configs were each found stale by a different review
+    /// round, and the last two could address an admin write to the wrong radio. Replacing
+    /// the whole struct closes the class: a field added later is cleared by construction
+    /// rather than by someone remembering to add a line here.
     pub fn begin_config_dump(&mut self, config_id: u32) {
-        self.want_config_id = Some(config_id);
-        self.config_complete = false;
-        self.metadata = None;
-        // Every cache that describes *which radio this is* has to go too. These feed the
-        // read-modify-write in `config set`, so a leftover copy could send one radio's
-        // complete sub-message to a different one — the two Solar Nodes here swap onto the
-        // same tty, so that is a real sequence, not a hypothetical.
-        self.raw_lora_config = None;
-        self.raw_device_config = None;
-        // Channels too: `channel add` picks a free slot from this list and `channel set`
-        // sends the cached settings back, so a previous radio's list would let one radio's
-        // PSK be written to another.
-        self.channels.clear();
-        // And the identity. Admin messages take their destination from this, so a stale
-        // copy would address a reboot or a config write to the *previous* radio's node
-        // number. Clearing it makes those calls fail until the current radio says who it
-        // is, which is the safe direction.
-        self.my_node_info = None;
+        *self = DeviceState {
+            want_config_id: Some(config_id),
+            ..DeviceState::default()
+        };
     }
 
     /// Forget one channel slot, so a readback has to come from the radio.

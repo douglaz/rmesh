@@ -261,6 +261,62 @@ mod state_tests {
         Ok(())
     }
 
+    /// The class, not one field. Five separate review rounds each found a different
+    /// `DeviceState` field surviving a reconnect, so this asserts that nothing does:
+    /// populate every cache, begin a dump, and require the struct to equal a fresh one.
+    /// A field added later fails here unless `begin_config_dump` accounts for it.
+    #[test]
+    fn test_begin_config_dump_discards_everything_from_the_previous_radio() -> Result<()> {
+        let mut state = DeviceState::new();
+
+        state.set_my_node_info(MyNodeInfo {
+            node_num: 1,
+            node_id: "1".to_string(),
+            reboot_count: 0,
+            min_app_version: 30200,
+            device_id: "d".to_string(),
+        });
+        state.metadata = Some(meshtastic::protobufs::DeviceMetadata::default());
+        state.raw_lora_config = Some(meshtastic::protobufs::config::LoRaConfig::default());
+        state.raw_device_config = Some(meshtastic::protobufs::config::DeviceConfig::default());
+        state.update_channel(ChannelInfo {
+            index: 1,
+            name: "c".to_string(),
+            role: "Secondary".to_string(),
+            has_psk: true,
+            settings: None,
+        });
+        state.config_complete = true;
+        state.device_config = Some(DeviceConfig {
+            role: "CLIENT".to_string(),
+            button_gpio: 0,
+            buzzer_gpio: 0,
+            rebroadcast_mode: "ALL".to_string(),
+            node_info_broadcast_secs: 1,
+            tzdef: None,
+            disable_triple_click: false,
+        });
+        state.position_config = Some(PositionConfig {
+            position_broadcast_secs: 1,
+            position_broadcast_smart_enabled: false,
+            fixed_position: false,
+            gps_enabled: true,
+            gps_mode: "ENABLED".to_string(),
+        });
+
+        state.begin_config_dump(7);
+
+        // Everything except the id we are now waiting for.
+        let mut expected = DeviceState::new();
+        expected.want_config_id = Some(7);
+        assert_eq!(
+            format!("{state:?}"),
+            format!("{expected:?}"),
+            "a field survived begin_config_dump; it describes the previous radio"
+        );
+        Ok(())
+    }
+
     /// The channel list drives slot allocation in `channel add` and is sent back verbatim
     /// by `channel set`. Carrying it across a reconnect would let one radio's PSK be
     /// written to another — the two Solar Nodes here share a tty, so that is routine.
