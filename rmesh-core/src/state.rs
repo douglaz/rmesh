@@ -48,6 +48,11 @@ pub struct DeviceState {
     pub telemetry: HashMap<u32, TelemetryData>,
     /// Device metadata reported by the radio, including the real firmware version.
     pub metadata: Option<meshtastic::protobufs::DeviceMetadata>,
+    /// The radio's own LoRa config, kept verbatim. Writing one field means sending the
+    /// whole message back, so a lossy copy would blank every field it does not carry.
+    pub raw_lora_config: Option<meshtastic::protobufs::config::LoRaConfig>,
+    /// The radio's own device config, kept verbatim, for the same reason.
+    pub raw_device_config: Option<meshtastic::protobufs::config::DeviceConfig>,
     /// The want_config id this session asked for, used to tell our configuration dump
     /// apart from one still draining from an earlier client.
     pub want_config_id: Option<u32>,
