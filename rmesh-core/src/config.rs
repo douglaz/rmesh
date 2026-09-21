@@ -100,12 +100,21 @@ pub async fn get_config_value(
     // stale state as though the radio had answered.
     let deadline = connection.timeout();
     let start = std::time::Instant::now();
+    let mut answered = false;
     while start.elapsed() < deadline {
         if connection.get_device_state().await.has_config(category) {
+            answered = true;
             break;
         }
         tokio::time::sleep(tokio::time::Duration::from_millis(20)).await;
     }
+    // Falling through would return {"value": null} with a success exit code, which is
+    // indistinguishable from a real value for a field that is not nullable.
+    ensure!(
+        answered,
+        "Timed out after {deadline:?} waiting for the {category} config. \
+         Admin reads usually need an authorised admin key for this radio."
+    );
 
     // Get the cached config from device state
     let state = connection.get_device_state().await;
