@@ -1044,7 +1044,10 @@ async fn process_config_response(
                 debug!("Updated network config");
             }
             meshtastic::protobufs::config::PayloadVariant::Display(display_config) => {
-                state.display_config = Some(DisplayConfig {
+                // compass_north_top is deprecated upstream in favour of compass_orientation,
+                // but the radio still sends it and rmesh still reports what the radio sends.
+                #[allow(deprecated)]
+                let display = DisplayConfig {
                     screen_on_secs: display_config.screen_on_secs,
                     gps_format: format!("{format:?}", format = display_config.gps_format()),
                     auto_screen_carousel_secs: display_config.auto_screen_carousel_secs,
@@ -1054,35 +1057,16 @@ async fn process_config_response(
                     displaymode: format!("{mode:?}", mode = display_config.displaymode()),
                     heading_bold: display_config.heading_bold,
                     wake_on_tap_or_motion: display_config.wake_on_tap_or_motion,
-                });
+                };
+                state.display_config = Some(display);
                 debug!("Updated display config");
             }
             meshtastic::protobufs::config::PayloadVariant::Lora(lora_config) => {
-                // Convert region enum to human-readable string
-                let region_str = match lora_config.region() {
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Unset => "Unset",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Us => "US",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Eu433 => "EU433",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Eu868 => "EU868",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Cn => "CN",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Jp => "JP",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Anz => "ANZ",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Kr => "KR",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Tw => "TW",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Ru => "RU",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::In => "IN",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Nz865 => "NZ865",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Th => "TH",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Lora24 => "LORA24",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Ua433 => "UA433",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Ua868 => "UA868",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::My433 => "MY433",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::My919 => "MY919",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Sg923 => "SG923",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Ph433 => "PH433",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Ph868 => "PH868",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Ph915 => "PH915",
-                };
+                // The protobuf name, rather than a hand-written table: every regen of the
+                // protobufs adds regions, and an exhaustive match turns that into a build
+                // break. This also matches what the reference client prints, and what
+                // `config set lora.region` accepts back.
+                let region_str = lora_config.region().as_str_name();
 
                 state.lora_config = Some(LoraConfig {
                     use_preset: lora_config.use_preset,
