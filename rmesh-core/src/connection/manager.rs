@@ -481,6 +481,9 @@ impl ConnectionManager {
 
         info!("Requesting admin session key...");
 
+        // Resolved before the mutable api borrow below.
+        let local_node = self.local_node_num().await?;
+
         let api = self.get_api()?;
 
         // Create admin message for session key request
@@ -503,7 +506,7 @@ impl ConnectionManager {
                     ..Default::default()
                 },
             )),
-            to: 0, // Local destination
+            to: local_node,
             ..Default::default()
         };
 
@@ -533,6 +536,22 @@ impl ConnectionManager {
     }
 
     /// Get the current session key if available
+    /// The attached radio's own node number.
+    ///
+    /// Admin messages must be addressed to it, never to 0. PKI-capable firmware encrypts
+    /// admin traffic to the destination's public key and node 0 has none, so the radio
+    /// answers PKI_SEND_FAIL_PUBLIC_KEY and drops the request — which made every admin
+    /// call (session key, config set, reboot) time out with nothing to show for it.
+    pub async fn local_node_num(&self) -> Result<u32> {
+        self.device_state
+            .lock()
+            .await
+            .my_node_info
+            .as_ref()
+            .map(|info| info.node_num)
+            .context("No node info from the radio yet; cannot address an admin message to it")
+    }
+
     pub async fn get_session_key(&self) -> Option<Vec<u8>> {
         self.admin_session_passkey.lock().await.clone()
     }

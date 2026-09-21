@@ -39,6 +39,9 @@ pub async fn add_channel(
     // Get the session key
     let session_key = connection.get_session_key().await.unwrap_or_default();
 
+    // Admin messages are addressed to the radio itself, not 0.
+    let local_node = connection.local_node_num().await?;
+
     let api = connection.get_api()?;
 
     // Create channel settings
@@ -74,7 +77,7 @@ pub async fn add_channel(
             },
         )),
         from: 0,
-        to: 0,
+        to: local_node,
         id: 0,
         rx_time: 0,
         rx_snr: 0.0,
@@ -107,6 +110,9 @@ pub async fn delete_channel(connection: &mut ConnectionManager, index: u32) -> R
     // Get the session key
     let session_key = connection.get_session_key().await.unwrap_or_default();
 
+    // Admin messages are addressed to the radio itself, not 0.
+    let local_node = connection.local_node_num().await?;
+
     let api = connection.get_api()?;
 
     // Create admin message for channel delete
@@ -127,7 +133,7 @@ pub async fn delete_channel(connection: &mut ConnectionManager, index: u32) -> R
             },
         )),
         from: 0,
-        to: 0,
+        to: local_node,
         id: 0,
         rx_time: 0,
         rx_snr: 0.0,
@@ -165,6 +171,9 @@ pub async fn set_channel(
     // Get the session key
     let session_key = connection.get_session_key().await.unwrap_or_default();
 
+    // Admin messages are addressed to the radio itself, not 0.
+    let local_node = connection.local_node_num().await?;
+
     let api = connection.get_api()?;
 
     // Create channel settings
@@ -200,7 +209,7 @@ pub async fn set_channel(
             },
         )),
         from: 0,
-        to: 0,
+        to: local_node,
         id: 0,
         rx_time: 0,
         rx_snr: 0.0,
