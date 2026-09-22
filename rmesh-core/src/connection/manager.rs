@@ -76,6 +76,17 @@ impl ConnectionManager {
     pub async fn connect(&mut self) -> Result<()> {
         info!("Establishing connection to Meshtastic device...");
 
+        // Tear down any previous session first. Reconnecting without disconnecting left the
+        // old processor task running: it shares device_state, so packets still queued from
+        // the previous radio would land *after* begin_config_dump resets the state and
+        // repopulate it — including my_node_info, which admin writes address by.
+        if self.api.is_some() || self.packet_processor.is_some() {
+            debug!("Tearing down the previous connection before reconnecting");
+            if let Err(e) = self.disconnect().await {
+                debug!("Error while closing the previous connection: {e}");
+            }
+        }
+
         // Create StreamApi instance
         let stream_api = StreamApi::new();
 
@@ -188,6 +199,9 @@ impl ConnectionManager {
         // Store the configured API
         self.api = Some(configured_api);
 
+        // Same reasoning as in `disconnect`, for a manager that is reconnected without one.
+        self.clear_session_key().await;
+
         // Record which dump we are waiting for before any packet can be processed.
         // `disconnect` leaves device_state intact, so a reconnect would otherwise inherit
         // the previous session's completion flag and skip the wait entirely.
@@ -291,11 +305,22 @@ impl ConnectionManager {
             api.disconnect().await?;
         }
 
+        // The passkey authorises admin writes against the radio that issued it. Keeping it
+        // would let `ensure_session_key` short-circuit on the next connection and send one
+        // radio's credential to another, which that radio rejects — silently, on the paths
+        // that do not read anything back.
+        self.clear_session_key().await;
+
         Ok(())
     }
 
     pub fn get_api(&mut self) -> Result<&mut ConnectedStreamApi<Configured>> {
         self.api.as_mut().context("Not connected")
+    }
+
+    /// How long callers may wait on the radio, from `--timeout`.
+    pub fn timeout(&self) -> Duration {
+        self.timeout
     }
 
     pub async fn get_device_state(&self) -> DeviceState {
@@ -476,6 +501,9 @@ impl ConnectionManager {
 
         info!("Requesting admin session key...");
 
+        // Resolved before the mutable api borrow below.
+        let local_node = self.local_node_num().await?;
+
         let api = self.get_api()?;
 
         // Create admin message for session key request
@@ -498,7 +526,7 @@ impl ConnectionManager {
                     ..Default::default()
                 },
             )),
-            to: 0, // Local destination
+            to: local_node,
             ..Default::default()
         };
 
@@ -528,6 +556,22 @@ impl ConnectionManager {
     }
 
     /// Get the current session key if available
+    /// The attached radio's own node number.
+    ///
+    /// Admin messages must be addressed to it, never to 0. PKI-capable firmware encrypts
+    /// admin traffic to the destination's public key and node 0 has none, so the radio
+    /// answers PKI_SEND_FAIL_PUBLIC_KEY and drops the request — which made every admin
+    /// call (session key, config set, reboot) time out with nothing to show for it.
+    pub async fn local_node_num(&self) -> Result<u32> {
+        self.device_state
+            .lock()
+            .await
+            .my_node_info
+            .as_ref()
+            .map(|info| info.node_num)
+            .context("No node info from the radio yet; cannot address an admin message to it")
+    }
+
     pub async fn get_session_key(&self) -> Option<Vec<u8>> {
         self.admin_session_passkey.lock().await.clone()
     }
@@ -588,7 +632,10 @@ async fn process_from_radio_packet(
                         id: user.id.clone(),
                         long_name: user.long_name.clone(),
                         short_name: user.short_name.clone(),
-                        hw_model: Some(format!("{model:?}", model = user.hw_model())),
+                        // Not user.hw_model(): that accessor maps a board newer than the
+                        // vendored protobufs back to UNSET, so `info nodes` would report
+                        // every such radio as having no hardware model.
+                        hw_model: crate::state::hardware_model_name(user.hw_model),
                     },
                     last_heard: Some(last_heard),
                     last_heard_iso,
@@ -833,12 +880,45 @@ async fn process_mesh_packet(
                     info!("Received and stored admin session passkey");
                 }
 
-                if let Some(
-                    meshtastic::protobufs::admin_message::PayloadVariant::GetConfigResponse(config),
-                ) = admin_msg.payload_variant
-                {
-                    debug!("Processing config response");
-                    process_config_response(config, device_state).await?;
+                match admin_msg.payload_variant {
+                    Some(
+                        meshtastic::protobufs::admin_message::PayloadVariant::GetConfigResponse(
+                            config,
+                        ),
+                    ) => {
+                        debug!("Processing config response");
+                        process_config_response(config, device_state).await?;
+                    }
+                    // Without this the reply to GetChannelRequest is dropped, so a channel
+                    // readback can never observe anything and every channel write reports
+                    // failure however well it went.
+                    Some(
+                        meshtastic::protobufs::admin_message::PayloadVariant::GetChannelResponse(
+                            channel,
+                        ),
+                    ) => {
+                        let mut state = device_state.lock().await;
+                        debug!(
+                            "Processing channel response for {index}",
+                            index = channel.index
+                        );
+                        state.update_channel(ChannelInfo {
+                            index: channel.index as u32,
+                            name: channel
+                                .settings
+                                .as_ref()
+                                .map(|s| s.name.clone())
+                                .unwrap_or_default(),
+                            role: format!("{role:?}", role = channel.role()),
+                            has_psk: channel
+                                .settings
+                                .as_ref()
+                                .map(|s| !s.psk.is_empty())
+                                .unwrap_or_default(),
+                            settings: channel.settings,
+                        });
+                    }
+                    _ => {}
                 }
             } else {
                 debug!("Failed to decode admin message");
@@ -990,6 +1070,7 @@ async fn process_config_response(
     if let Some(payload) = config.payload_variant {
         match payload {
             meshtastic::protobufs::config::PayloadVariant::Device(device_config) => {
+                state.raw_device_config = Some(device_config.clone());
                 state.device_config = Some(DeviceConfig {
                     role: format!("{role:?}", role = device_config.role()),
                     button_gpio: device_config.button_gpio,
@@ -1044,45 +1125,41 @@ async fn process_config_response(
                 debug!("Updated network config");
             }
             meshtastic::protobufs::config::PayloadVariant::Display(display_config) => {
-                state.display_config = Some(DisplayConfig {
+                // One narrow allow per deprecated field, deliberately not one covering the
+                // whole struct: a blanket allow here silenced gps_format's own deprecation
+                // (upstream marked it Unused in 2.7.4) and hid that rmesh was reporting a
+                // dead field. Keep each suppression pinned to the field it excuses so the
+                // next deprecation still shows up as a build warning.
+                #[allow(deprecated)]
+                let gps_format = format!("{format:?}", format = display_config.gps_format());
+                #[allow(deprecated)]
+                let compass_north_top = display_config.compass_north_top;
+
+                let display = DisplayConfig {
                     screen_on_secs: display_config.screen_on_secs,
-                    gps_format: format!("{format:?}", format = display_config.gps_format()),
+                    gps_format,
                     auto_screen_carousel_secs: display_config.auto_screen_carousel_secs,
-                    compass_north_top: display_config.compass_north_top,
+                    compass_north_top,
+                    compass_orientation: format!(
+                        "{orientation:?}",
+                        orientation = display_config.compass_orientation()
+                    ),
                     flip_screen: display_config.flip_screen,
                     units: format!("{units:?}", units = display_config.units()),
                     displaymode: format!("{mode:?}", mode = display_config.displaymode()),
                     heading_bold: display_config.heading_bold,
                     wake_on_tap_or_motion: display_config.wake_on_tap_or_motion,
-                });
+                };
+                state.display_config = Some(display);
                 debug!("Updated display config");
             }
             meshtastic::protobufs::config::PayloadVariant::Lora(lora_config) => {
-                // Convert region enum to human-readable string
-                let region_str = match lora_config.region() {
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Unset => "Unset",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Us => "US",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Eu433 => "EU433",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Eu868 => "EU868",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Cn => "CN",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Jp => "JP",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Anz => "ANZ",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Kr => "KR",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Tw => "TW",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Ru => "RU",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::In => "IN",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Nz865 => "NZ865",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Th => "TH",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Lora24 => "LORA24",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Ua433 => "UA433",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Ua868 => "UA868",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::My433 => "MY433",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::My919 => "MY919",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Sg923 => "SG923",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Ph433 => "PH433",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Ph868 => "PH868",
-                    meshtastic::protobufs::config::lo_ra_config::RegionCode::Ph915 => "PH915",
-                };
+                state.raw_lora_config = Some(lora_config.clone());
+                // The protobuf name, rather than a hand-written table: every regen of the
+                // protobufs adds regions, and an exhaustive match turns that into a build
+                // break. This also matches what the reference client prints, and what
+                // `config set lora.region` accepts back.
+                let region_str = crate::state::region_name(lora_config.region);
 
                 state.lora_config = Some(LoraConfig {
                     use_preset: lora_config.use_preset,
@@ -1130,6 +1207,35 @@ async fn process_config_response(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Reconnecting without disconnecting must not leave the previous processor running:
+    /// it shares `device_state` and would write the old radio's queued packets into the
+    /// state the new dump has just reset.
+    #[tokio::test]
+    async fn reconnect_stops_the_previous_packet_processor() {
+        let mut manager = ConnectionManager::new(None, None, Duration::from_secs(1))
+            .await
+            .expect("manager");
+
+        // Stand in for a live session: a task holding device_state, as the real processor
+        // does, plus the handle connect() checks.
+        let state = manager.get_device_state_ref();
+        let handle = tokio::spawn(async move {
+            loop {
+                state.lock().await.config_complete = true;
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        });
+        manager.packet_processor = Some(handle);
+
+        // connect() fails here (no port), but only after the teardown it now performs.
+        let _ = manager.connect().await;
+
+        assert!(
+            manager.packet_processor.is_none(),
+            "the previous processor must be shut down before a new session starts"
+        );
+    }
 
     /// Feed a single FromRadio payload through the handler against a fresh state.
     async fn feed(

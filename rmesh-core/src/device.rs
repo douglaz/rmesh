@@ -17,6 +17,9 @@ pub async fn reboot_device(
     // Get the session key
     let session_key = connection.get_session_key().await.unwrap_or_default();
 
+    // Admin messages are addressed to the radio itself, not 0.
+    let local_node = connection.local_node_num().await?;
+
     let api = connection.get_api()?;
     let delay = delay_seconds.unwrap_or(5);
 
@@ -38,7 +41,7 @@ pub async fn reboot_device(
             },
         )),
         from: 0,
-        to: 0, // Local destination
+        to: local_node,
         id: 0,
         rx_time: 0,
         rx_snr: 0.0,
@@ -71,6 +74,9 @@ pub async fn factory_reset_device(connection: &mut ConnectionManager) -> Result<
     // Get the session key
     let session_key = connection.get_session_key().await.unwrap_or_default();
 
+    // Admin messages are addressed to the radio itself, not 0.
+    let local_node = connection.local_node_num().await?;
+
     let api = connection.get_api()?;
 
     // Create admin message for factory reset
@@ -89,7 +95,7 @@ pub async fn factory_reset_device(connection: &mut ConnectionManager) -> Result<
             },
         )),
         from: 0,
-        to: 0, // Local destination
+        to: local_node,
         id: 0,
         rx_time: 0,
         rx_snr: 0.0,
@@ -126,6 +132,9 @@ pub async fn shutdown_device(
     // Get the session key
     let session_key = connection.get_session_key().await.unwrap_or_default();
 
+    // Admin messages are addressed to the radio itself, not 0.
+    let local_node = connection.local_node_num().await?;
+
     let api = connection.get_api()?;
     let delay = delay_seconds.unwrap_or(5);
 
@@ -147,7 +156,7 @@ pub async fn shutdown_device(
             },
         )),
         from: 0,
-        to: 0, // Local destination
+        to: local_node,
         id: 0,
         rx_time: 0,
         rx_snr: 0.0,

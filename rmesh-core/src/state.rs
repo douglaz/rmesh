@@ -1,6 +1,34 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Render a protobuf hardware-model id.
+///
+/// Works from the raw `i32` rather than the generated accessor, which maps any value the
+/// vendored protobufs do not know back to `UNSET` — turning "this board is newer than the
+/// protobufs rmesh was built against" into "the radio does not know its own hardware".
+/// Returns `None` only for a genuine `UNSET`.
+pub fn hardware_model_name(raw: i32) -> Option<String> {
+    if raw == meshtastic::protobufs::HardwareModel::Unset as i32 {
+        return None;
+    }
+    Some(
+        meshtastic::protobufs::HardwareModel::try_from(raw)
+            .map(|hw| format!("{hw:?}"))
+            .unwrap_or_else(|_| format!("Unknown({raw})")),
+    )
+}
+
+/// Render a protobuf LoRa region id, for the same reason as [`hardware_model_name`].
+///
+/// An unknown region must not collapse to `UNSET`: that is a real region code meaning the
+/// radio will not transmit, so reporting it for a region rmesh simply cannot name would be
+/// actively misleading.
+pub fn region_name(raw: i32) -> String {
+    meshtastic::protobufs::config::lo_ra_config::RegionCode::try_from(raw)
+        .map(|region| region.as_str_name().to_string())
+        .unwrap_or_else(|_| format!("Unknown({raw})"))
+}
+
 /// Cached device state from received packets
 #[derive(Debug, Clone, Default)]
 pub struct DeviceState {
@@ -20,6 +48,11 @@ pub struct DeviceState {
     pub telemetry: HashMap<u32, TelemetryData>,
     /// Device metadata reported by the radio, including the real firmware version.
     pub metadata: Option<meshtastic::protobufs::DeviceMetadata>,
+    /// The radio's own LoRa config, kept verbatim. Writing one field means sending the
+    /// whole message back, so a lossy copy would blank every field it does not carry.
+    pub raw_lora_config: Option<meshtastic::protobufs::config::LoRaConfig>,
+    /// The radio's own device config, kept verbatim, for the same reason.
+    pub raw_device_config: Option<meshtastic::protobufs::config::DeviceConfig>,
     /// The want_config id this session asked for, used to tell our configuration dump
     /// apart from one still draining from an earlier client.
     pub want_config_id: Option<u32>,
@@ -118,16 +151,61 @@ impl DeviceState {
         self.my_node_info = Some(info);
     }
 
-    /// Start waiting for the configuration dump identified by `config_id`.
+    /// Start waiting for the configuration dump identified by `config_id`, discarding
+    /// everything known about the previous connection.
     ///
-    /// These fields have to move together. Leaving `config_complete` set from an earlier
-    /// session would let a reconnect skip the wait for its own dump, and keeping the
-    /// previous `metadata` would let a dump that omits it — or times out before it
-    /// arrives — report the *earlier* firmware version rather than `Unknown`.
+    /// Every field in `DeviceState` describes the radio on the other end, so none of it may
+    /// outlive the dump that produced it. Enumerating the fields to clear has now failed
+    /// five separate times — `metadata`, the raw write caches, the channel list,
+    /// `my_node_info` and the parsed configs were each found stale by a different review
+    /// round, and the last two could address an admin write to the wrong radio. Replacing
+    /// the whole struct closes the class: a field added later is cleared by construction
+    /// rather than by someone remembering to add a line here.
     pub fn begin_config_dump(&mut self, config_id: u32) {
-        self.want_config_id = Some(config_id);
-        self.config_complete = false;
-        self.metadata = None;
+        *self = DeviceState {
+            want_config_id: Some(config_id),
+            ..DeviceState::default()
+        };
+    }
+
+    /// Forget one channel slot, so a readback has to come from the radio.
+    pub fn invalidate_channel(&mut self, index: u32) {
+        self.channels.retain(|c| c.index != index);
+    }
+
+    /// Forget the cached copy of one config sub-message, so the next read has to come from
+    /// the radio rather than from whatever is already in hand.
+    pub fn invalidate_config(&mut self, category: &str) {
+        match category {
+            "device" => {
+                self.device_config = None;
+                self.raw_device_config = None;
+            }
+            "lora" => {
+                self.lora_config = None;
+                self.raw_lora_config = None;
+            }
+            "position" => self.position_config = None,
+            "power" => self.power_config = None,
+            "network" => self.network_config = None,
+            "display" => self.display_config = None,
+            "bluetooth" => self.bluetooth_config = None,
+            _ => {}
+        }
+    }
+
+    /// Whether the radio has since sent the sub-message named by `category`.
+    pub fn has_config(&self, category: &str) -> bool {
+        match category {
+            "device" => self.device_config.is_some(),
+            "lora" => self.lora_config.is_some(),
+            "position" => self.position_config.is_some(),
+            "power" => self.power_config.is_some(),
+            "network" => self.network_config.is_some(),
+            "display" => self.display_config.is_some(),
+            "bluetooth" => self.bluetooth_config.is_some(),
+            _ => false,
+        }
     }
 
     /// The local radio's hardware model.
@@ -137,17 +215,10 @@ impl DeviceState {
     /// does, and reports `SEEED_SOLAR_NODE` only in metadata). Falls back to the NodeDB for
     /// a device whose metadata never arrived.
     pub fn hardware_model(&self) -> Option<String> {
-        let from_metadata = self.metadata.as_ref().and_then(|m| match m.hw_model {
-            0 => None, // UNSET
-            raw => Some(
-                meshtastic::protobufs::HardwareModel::try_from(raw)
-                    .map(|hw| format!("{hw:?}"))
-                    // The pinned protobufs lag the firmware — SEEED_SOLAR_NODE (95) has no
-                    // variant yet — and the generated accessor silently maps an unknown
-                    // value back to UNSET. Surface the number instead of losing it.
-                    .unwrap_or_else(|_| format!("Unknown({raw})")),
-            ),
-        });
+        let from_metadata = self
+            .metadata
+            .as_ref()
+            .and_then(|m| hardware_model_name(m.hw_model));
 
         from_metadata.or_else(|| {
             // Only the local node: any other entry describes somebody else's radio.
@@ -218,9 +289,14 @@ pub struct NetworkConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DisplayConfig {
     pub screen_on_secs: u32,
+    /// Deprecated upstream in 2.7.4 as unused. Reported because the radio still carries the
+    /// byte, but it does not describe anything the firmware acts on.
     pub gps_format: String,
     pub auto_screen_carousel_secs: u32,
+    /// Deprecated upstream in favour of `compass_orientation`, which is reported separately
+    /// rather than in its place — the two do not mean the same thing.
     pub compass_north_top: bool,
+    pub compass_orientation: String,
     pub flip_screen: bool,
     pub units: String,
     pub displaymode: String,

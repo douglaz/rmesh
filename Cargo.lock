@@ -94,6 +94,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
+name = "base64"
+version = "0.22.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
+
+[[package]]
 name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -856,7 +862,7 @@ checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 [[package]]
 name = "meshtastic"
 version = "0.1.7"
-source = "git+https://github.com/douglaz/meshtastic-rust.git?branch=fix-serial-logging#9cf2d3d4266864edc0b9e750aa34cdf0a2a64a2b"
+source = "git+https://github.com/douglaz/meshtastic-rust.git?rev=a78a028682d98e95540a44f3951b6478fa90fdc7#a78a028682d98e95540a44f3951b6478fa90fdc7"
 dependencies = [
  "bluez-async",
  "btleplug",
@@ -1188,6 +1194,7 @@ name = "rmesh-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64",
  "chrono",
  "hex",
  "log",

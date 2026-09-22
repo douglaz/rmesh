@@ -14,7 +14,7 @@ repository = "https://github.com/yourusername/rmesh"
 
 [workspace.dependencies]
 # Core dependencies
-meshtastic = { git = "https://github.com/douglaz/meshtastic-rust.git", branch = "fix-serial-logging", features = ["serde"] }
+meshtastic = { git = "https://github.com/douglaz/meshtastic-rust.git", rev = "a78a028682d98e95540a44f3951b6478fa90fdc7", features = ["serde"] }
 tokio = { version = "1.43", features = ["full"] }
 anyhow = "1.0"
 thiserror = "2.0"
@@ -38,4 +38,7 @@ comfy-table = "7.1"
 humantime = "2.1"
 chrono = { version = "0.4", features = ["serde"] }
 hex = "0.4"
+# PSKs are exchanged as base64 (that is what --export-config and channel URLs carry).
+# Hand-decoding an encryption key is not worth saving a dependency over.
+base64 = "0.22"
 strum = { version = "0.28", features = ["derive"] }

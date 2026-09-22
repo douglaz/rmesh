@@ -1,7 +1,9 @@
 #[cfg(test)]
 mod state_tests {
+    use crate::state::{
+        ChannelInfo, DeviceState, LoraConfig, MyNodeInfo, NodeInfo, Position, TextMessage, User,
+    };
     use crate::state::{DeviceConfig, DeviceMetrics, PositionConfig, TelemetryData};
-    use crate::state::{DeviceState, MyNodeInfo, NodeInfo, Position, TextMessage, User};
     use anyhow::{Context, Result};
 
     #[test]
@@ -136,21 +138,31 @@ mod state_tests {
         Ok(())
     }
 
-    /// The real Seeed Solar Node case: hw_model 95 postdates the pinned protobufs, and the
-    /// generated accessor maps an unrecognised value back to UNSET. The raw number has to
-    /// survive, or the board silently reads as "Unknown".
+    /// A board newer than the vendored protobufs must still report its id: prost's
+    /// generated accessor maps an unrecognised value back to UNSET, which would make a real
+    /// radio look like it does not know its own hardware.
+    ///
+    /// This is what happened to the Seeed Solar Node (95) while the protobufs were pinned
+    /// at v2.5.23. Regenerating them made 95 known, so the id below is asserted to be
+    /// unassigned rather than hardcoded as "some board we don't have" — otherwise a later
+    /// regen silently turns this into a test of the known-board path.
     #[test]
     fn test_hardware_model_surfaces_a_board_newer_than_the_protobufs() -> Result<()> {
-        const SEEED_SOLAR_NODE: i32 = 95;
+        const UNASSIGNED_HW_MODEL: i32 = 222;
+        assert!(
+            meshtastic::protobufs::HardwareModel::try_from(UNASSIGNED_HW_MODEL).is_err(),
+            "hw_model {UNASSIGNED_HW_MODEL} is now a real board — pick another unassigned id"
+        );
+
         let mut state = state_with_unset_local_hw_model();
         state.metadata = Some(meshtastic::protobufs::DeviceMetadata {
-            hw_model: SEEED_SOLAR_NODE,
+            hw_model: UNASSIGNED_HW_MODEL,
             ..Default::default()
         });
 
         assert_eq!(
             state.hardware_model().as_deref(),
-            Some("Unknown(95)"),
+            Some("Unknown(222)"),
             "a board the protobufs do not know must still report its id"
         );
         Ok(())
@@ -224,6 +236,138 @@ mod state_tests {
         assert!(
             state.metadata.is_none(),
             "a dump that omits metadata must report Unknown, not the earlier firmware"
+        );
+        Ok(())
+    }
+
+    /// The raw sub-messages feed the read-modify-write in `config set`. A leftover copy
+    /// would let one radio's complete config be written to whichever radio is attached
+    /// next — the two Solar Nodes here share a tty, so that sequence is routine.
+    #[test]
+    fn test_begin_config_dump_clears_raw_configs() -> Result<()> {
+        let mut state = DeviceState::new();
+        state.raw_lora_config = Some(meshtastic::protobufs::config::LoRaConfig {
+            tx_power: 30,
+            ..Default::default()
+        });
+        state.raw_device_config = Some(meshtastic::protobufs::config::DeviceConfig::default());
+
+        state.begin_config_dump(1);
+
+        assert!(
+            state.raw_lora_config.is_none() && state.raw_device_config.is_none(),
+            "a reconnect must not write a previous radio's config to the current one"
+        );
+        Ok(())
+    }
+
+    /// The class, not one field. Five separate review rounds each found a different
+    /// `DeviceState` field surviving a reconnect, so this asserts that nothing does:
+    /// populate every cache, begin a dump, and require the struct to equal a fresh one.
+    /// A field added later fails here unless `begin_config_dump` accounts for it.
+    #[test]
+    fn test_begin_config_dump_discards_everything_from_the_previous_radio() -> Result<()> {
+        let mut state = DeviceState::new();
+
+        state.set_my_node_info(MyNodeInfo {
+            node_num: 1,
+            node_id: "1".to_string(),
+            reboot_count: 0,
+            min_app_version: 30200,
+            device_id: "d".to_string(),
+        });
+        state.metadata = Some(meshtastic::protobufs::DeviceMetadata::default());
+        state.raw_lora_config = Some(meshtastic::protobufs::config::LoRaConfig::default());
+        state.raw_device_config = Some(meshtastic::protobufs::config::DeviceConfig::default());
+        state.update_channel(ChannelInfo {
+            index: 1,
+            name: "c".to_string(),
+            role: "Secondary".to_string(),
+            has_psk: true,
+            settings: None,
+        });
+        state.config_complete = true;
+        state.device_config = Some(DeviceConfig {
+            role: "CLIENT".to_string(),
+            button_gpio: 0,
+            buzzer_gpio: 0,
+            rebroadcast_mode: "ALL".to_string(),
+            node_info_broadcast_secs: 1,
+            tzdef: None,
+            disable_triple_click: false,
+        });
+        state.position_config = Some(PositionConfig {
+            position_broadcast_secs: 1,
+            position_broadcast_smart_enabled: false,
+            fixed_position: false,
+            gps_enabled: true,
+            gps_mode: "ENABLED".to_string(),
+        });
+
+        state.begin_config_dump(7);
+
+        // Everything except the id we are now waiting for.
+        let mut expected = DeviceState::new();
+        expected.want_config_id = Some(7);
+        assert_eq!(
+            format!("{state:?}"),
+            format!("{expected:?}"),
+            "a field survived begin_config_dump; it describes the previous radio"
+        );
+        Ok(())
+    }
+
+    /// The channel list drives slot allocation in `channel add` and is sent back verbatim
+    /// by `channel set`. Carrying it across a reconnect would let one radio's PSK be
+    /// written to another — the two Solar Nodes here share a tty, so that is routine.
+    #[test]
+    fn test_begin_config_dump_clears_channels() -> Result<()> {
+        let mut state = DeviceState::new();
+        state.update_channel(ChannelInfo {
+            index: 1,
+            name: "other-radio".to_string(),
+            role: "Secondary".to_string(),
+            has_psk: true,
+            settings: None,
+        });
+
+        state.begin_config_dump(1);
+
+        assert!(
+            state.channels.is_empty(),
+            "a reconnect must not offer the previous radio's channels"
+        );
+        Ok(())
+    }
+
+    /// `config get` invalidates before requesting so a late reply cannot be mistaken for a
+    /// fresh one; the read path has to actually observe the sub-message going away.
+    #[test]
+    fn test_invalidate_config_clears_both_views() -> Result<()> {
+        let mut state = DeviceState::new();
+        state.raw_lora_config = Some(meshtastic::protobufs::config::LoRaConfig::default());
+        state.lora_config = Some(LoraConfig {
+            use_preset: true,
+            modem_preset: "LONG_FAST".to_string(),
+            bandwidth: 250,
+            spread_factor: 11,
+            coding_rate: 5,
+            frequency_offset: 0.0,
+            region: "ANZ".to_string(),
+            hop_limit: 3,
+            tx_enabled: true,
+            tx_power: 30,
+            channel_num: 0,
+            ignore_mqtt: false,
+        });
+        assert!(state.has_config("lora"));
+
+        state.invalidate_config("lora");
+
+        assert!(!state.has_config("lora"), "parsed view must be cleared");
+        assert!(
+            state.raw_lora_config.is_none(),
+            "raw view must be cleared too, or the write path still sees stale data"
         );
         Ok(())
     }
