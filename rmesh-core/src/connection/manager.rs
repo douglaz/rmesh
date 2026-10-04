@@ -262,8 +262,11 @@ impl ConnectionManager {
             }
 
             // The radio is gone (unplugged, or the link dropped): end every watcher too, or
-            // `message monitor` would wait forever on a stream nothing feeds.
+            // `message monitor` would wait forever on a stream nothing feeds, and every pending
+            // traceroute or ACK, which could otherwise only time out.
             packet_subscribers.lock().await.clear();
+            route_waiters.lock().await.clear();
+            ack_waiters.lock().await.clear();
             info!("Packet processing loop ended");
         });
 
@@ -425,7 +428,9 @@ impl ConnectionManager {
         match reply? {
             Ok(Ok(Ok(route))) => Ok(route),
             Ok(Ok(Err(reason))) => bail!("Traceroute to {destination:08x} failed: {reason}"),
-            Ok(Err(_)) => bail!("Traceroute to {destination:08x} was abandoned"),
+            Ok(Err(_)) => {
+                bail!("The connection to the radio closed before {destination:08x} replied")
+            }
             Err(_) => bail!("No traceroute reply from {destination:08x} within {wait:?}"),
         }
     }
@@ -1468,14 +1473,18 @@ mod tests {
         Ok(())
     }
 
-    /// A radio that goes away (unplugged, link dropped) ends the processor; its watchers
-    /// must end with it, or `message monitor` waits forever on a stream nothing feeds.
+    /// A radio that goes away (unplugged, link dropped) ends the processor. Its watchers,
+    /// pending traceroutes and pending ACKs must end with it, instead of waiting on a
+    /// stream nothing feeds until they time out.
     #[tokio::test]
-    async fn a_dead_radio_closes_watchers() -> Result<()> {
+    async fn a_dead_radio_ends_watchers_and_pending_requests() -> Result<()> {
         let mut manager = ConnectionManager::new(None, None, Duration::from_secs(1)).await?;
         let (radio, packets) = mpsc::unbounded_channel::<meshtastic::protobufs::FromRadio>();
         manager.start_packet_processing(packets).await;
         let mut watcher = manager.subscribe_packets().await;
+        let traceroute = route_waiter(&manager.route_waiters, 42).await;
+        let (ack, ack_wait) = oneshot::channel();
+        manager.ack_waiters.lock().await.insert(43, ack);
 
         drop(radio);
 
@@ -1483,6 +1492,16 @@ mod tests {
         assert!(
             matches!(closed, Ok(None)),
             "the watcher's stream must close with the radio's"
+        );
+        let traceroute = tokio::time::timeout(Duration::from_secs(5), traceroute).await;
+        assert!(
+            matches!(traceroute, Ok(Err(_))),
+            "a pending traceroute must end with the radio, not time out"
+        );
+        let ack_wait = tokio::time::timeout(Duration::from_secs(5), ack_wait).await;
+        assert!(
+            matches!(ack_wait, Ok(Err(_))),
+            "a pending ACK must end with the radio, not time out"
         );
         Ok(())
     }
