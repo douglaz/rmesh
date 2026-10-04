@@ -82,11 +82,12 @@
   reads as "this is a reply", so the destination never responded. The handler also
   listened only on the routing port, while replies come on the traceroute port. It now
   sends what the reference client sends and prints both directions, endpoints included,
-  with the SNR each hop heard. No reply within 20 s per hop, the destination's included, is now an error instead of "No
-  route found". A routing error such as `NO_RESPONSE`, or the radio refusing the request
-  (as it does for a second traceroute within 30 s on one connection), ends the wait with
-  that reason. If the radio goes away, a pending traceroute (or `message send --ack`) ends
-  at once instead of timing out. A routing acknowledgement, which firmware 2.7.26 requests for every
-  traceroute, no longer counts as a failure. The way back is shown only when the reply
-  recorded it completely, as in the reference client. In `--json` output, the hop list is
-  now `towards` and `back`, and the always-empty `rssi` field is gone.
+  with the SNR each hop heard. No reply within 20 s per hop, the destination's included,
+  is now an error instead of "No route found". A routing error such as `NO_RESPONSE`, or
+  the radio refusing the request (as it does for a second traceroute within 30 s on one
+  connection), ends the wait with that reason. If the radio goes away, a pending
+  traceroute (or `message send --ack`) ends at once instead of timing out. A routing
+  acknowledgement, which firmware 2.7.26 requests for every traceroute, no longer counts as
+  a failure. The way back is shown only when the reply recorded it completely, as in the
+  reference client. In `--json` output, the hop list is now `towards` and `back`, and the
+  always-empty `rssi` field is gone.

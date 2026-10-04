@@ -44,6 +44,10 @@ impl PacketRouter<(), std::io::Error> for NoOpRouter {
     }
 }
 
+/// Packet streams handed to watchers; `None` while no stream is live.
+type PacketSubscribers =
+    Arc<Mutex<Option<Vec<mpsc::UnboundedSender<meshtastic::protobufs::FromRadio>>>>>;
+
 /// Pending traceroutes by request packet id: the route, or the routing error that ended it.
 type RouteWaiters = Arc<
     Mutex<
@@ -57,8 +61,9 @@ pub struct ConnectionManager {
     timeout: Duration,
     api: Option<ConnectedStreamApi<Configured>>,
     /// Every packet the processor sees is also copied to these, for commands that watch
-    /// the stream (`message monitor`, `position track`).
-    packet_subscribers: Arc<Mutex<Vec<mpsc::UnboundedSender<meshtastic::protobufs::FromRadio>>>>,
+    /// the stream (`message monitor`, `position track`). `None` while no stream is live:
+    /// before connecting, after disconnecting, and once the radio's stream has ended.
+    packet_subscribers: PacketSubscribers,
     device_state: Arc<Mutex<DeviceState>>,
     packet_processor: Option<JoinHandle<()>>,
     ack_waiters: Arc<Mutex<HashMap<u32, oneshot::Sender<bool>>>>,
@@ -73,7 +78,7 @@ impl ConnectionManager {
             ble,
             timeout,
             api: None,
-            packet_subscribers: Arc::new(Mutex::new(Vec::new())),
+            packet_subscribers: Arc::new(Mutex::new(None)),
             device_state: Arc::new(Mutex::new(DeviceState::new())),
             packet_processor: None,
             ack_waiters: Arc::new(Mutex::new(HashMap::new())),
@@ -235,6 +240,7 @@ impl ConnectionManager {
         let route_waiters = self.route_waiters.clone();
         let admin_session_passkey = self.admin_session_passkey.clone();
         let packet_subscribers = self.packet_subscribers.clone();
+        *packet_subscribers.lock().await = Some(Vec::new());
 
         // Spawn a background task to process packets
         let handle = tokio::spawn(async move {
@@ -243,10 +249,9 @@ impl ConnectionManager {
             while let Some(packet) = receiver.recv().await {
                 // Before processing, which consumes the packet and can fail. A subscriber
                 // whose receiver is gone is dropped here.
-                packet_subscribers
-                    .lock()
-                    .await
-                    .retain(|subscriber| subscriber.send(packet.clone()).is_ok());
+                if let Some(subscribers) = packet_subscribers.lock().await.as_mut() {
+                    subscribers.retain(|subscriber| subscriber.send(packet.clone()).is_ok());
+                }
 
                 if let Err(e) = process_from_radio_packet(
                     packet,
@@ -264,7 +269,7 @@ impl ConnectionManager {
             // The radio is gone (unplugged, or the link dropped): end every watcher too, or
             // `message monitor` would wait forever on a stream nothing feeds, and every pending
             // traceroute or ACK, which could otherwise only time out.
-            packet_subscribers.lock().await.clear();
+            *packet_subscribers.lock().await = None;
             route_waiters.lock().await.clear();
             ack_waiters.lock().await.clear();
             info!("Packet processing loop ended");
@@ -324,7 +329,7 @@ impl ConnectionManager {
             processor.abort();
         }
         // Close every subscriber's stream, so a watcher ends instead of waiting forever.
-        self.packet_subscribers.lock().await.clear();
+        *self.packet_subscribers.lock().await = None;
 
         if let Some(mut api) = self.api.take() {
             // The firmware turns Bluetooth off while a serial client is attached and only turns
@@ -370,15 +375,20 @@ impl ConnectionManager {
     }
 
     /// A stream of every packet received from now on, alongside the manager's own
-    /// processing. It closes on disconnect. Drain it or drop it: it is unbounded, like the
+    /// processing. It closes on disconnect or when the radio's stream ends, and is closed
+    /// from the start if no stream is live. Drain it or drop it: it is unbounded, like the
     /// radio stream it copies, so packets left unread accumulate.
     pub async fn subscribe_packets(&self) -> PacketReceiver {
         let (subscriber, receiver) = mpsc::unbounded_channel();
-        let mut subscribers = self.packet_subscribers.lock().await;
-        // Receivers dropped while the radio was quiet are otherwise only noticed when the
-        // next packet arrives.
-        subscribers.retain(|existing| !existing.is_closed());
-        subscribers.push(subscriber);
+        // Under the same lock the processor closes the list with, so a subscription cannot
+        // land just after the stream ended and wait forever. With no live stream the
+        // subscriber is dropped here, closing the receiver.
+        if let Some(subscribers) = self.packet_subscribers.lock().await.as_mut() {
+            // Receivers dropped while the radio was quiet are otherwise only noticed when
+            // the next packet arrives.
+            subscribers.retain(|existing| !existing.is_closed());
+            subscribers.push(subscriber);
+        }
         receiver
     }
 
@@ -1470,11 +1480,55 @@ mod tests {
     /// closed subscribers until the next packet happens to arrive.
     #[tokio::test]
     async fn dropped_subscribers_do_not_pile_up() -> Result<()> {
-        let manager = ConnectionManager::new(None, None, Duration::from_secs(1)).await?;
+        let mut manager = ConnectionManager::new(None, None, Duration::from_secs(1)).await?;
+        let (_radio, packets) = mpsc::unbounded_channel();
+        manager.start_packet_processing(packets).await;
         for _ in 0..3 {
             drop(manager.subscribe_packets().await);
         }
-        assert_eq!(manager.packet_subscribers.lock().await.len(), 1);
+        let registered = manager
+            .packet_subscribers
+            .lock()
+            .await
+            .as_ref()
+            .map_or(0, Vec::len);
+        assert_eq!(registered, 1);
+        Ok(())
+    }
+
+    /// With no live stream there is nothing to feed or close a new subscriber, so it must
+    /// read as closed at once: before connecting, after disconnecting, and after the
+    /// radio's stream has ended.
+    #[tokio::test]
+    async fn a_subscription_without_a_live_stream_is_closed() -> Result<()> {
+        async fn closed_at_once(manager: &ConnectionManager) -> bool {
+            let mut watcher = manager.subscribe_packets().await;
+            matches!(
+                tokio::time::timeout(Duration::from_secs(5), watcher.recv()).await,
+                Ok(None)
+            )
+        }
+
+        let mut manager = ConnectionManager::new(None, None, Duration::from_secs(1)).await?;
+        assert!(closed_at_once(&manager).await, "before connecting");
+
+        let (_radio, packets) = mpsc::unbounded_channel();
+        manager.start_packet_processing(packets).await;
+        manager.disconnect().await?;
+        assert!(closed_at_once(&manager).await, "after disconnecting");
+
+        let (radio, packets) = mpsc::unbounded_channel();
+        manager.start_packet_processing(packets).await;
+        let mut first = manager.subscribe_packets().await;
+        drop(radio);
+        // Once this closes, the processor has ended and closed the list.
+        tokio::time::timeout(Duration::from_secs(5), first.recv())
+            .await
+            .context("the processor must end with the radio")?;
+        assert!(
+            closed_at_once(&manager).await,
+            "after the radio's stream ended"
+        );
         Ok(())
     }
 
