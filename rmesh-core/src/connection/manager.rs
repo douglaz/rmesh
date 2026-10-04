@@ -392,7 +392,13 @@ impl ConnectionManager {
         let packet_id = rand::random::<u32>().max(1);
 
         let (tx, rx) = oneshot::channel();
-        self.route_waiters.lock().await.insert(packet_id, tx);
+        {
+            let mut waiters = self.route_waiters.lock().await;
+            // A caller that dropped this future mid-wait (a timeout, Ctrl+C) never reached
+            // the cleanup below; its receiver is gone, so its entry is closed. Prune those.
+            waiters.retain(|_, waiter| !waiter.is_closed());
+            waiters.insert(packet_id, tx);
+        }
 
         // The reference client allows 20 s per hop.
         let wait = Duration::from_secs(20 * u64::from(hop_limit.max(1)));
@@ -1717,6 +1723,36 @@ mod tests {
         let mut manager = ConnectionManager::new(None, None, Duration::from_secs(1)).await?;
         assert!(manager.send_traceroute(0x7e9bb193).await.is_err());
         assert!(manager.route_waiters.lock().await.is_empty());
+        Ok(())
+    }
+
+    /// A caller that drops the traceroute future mid-wait (a timeout, Ctrl+C) skips its
+    /// cleanup. Its entry must not outlive the next traceroute, or the map grows forever.
+    #[tokio::test]
+    async fn a_cancelled_traceroute_does_not_leak_its_waiter() -> Result<()> {
+        let (client, _radio) = tokio::io::duplex(4096);
+        let (_receiver, api) = StreamApi::new()
+            .connect(meshtastic::api::StreamHandle::from_stream(client))
+            .await;
+        let mut manager = ConnectionManager::new(None, None, Duration::from_secs(1)).await?;
+        manager.api = Some(api.configure(1).await?);
+
+        for _ in 0..3 {
+            let cancelled = tokio::time::timeout(
+                Duration::from_millis(50),
+                manager.send_traceroute(0x7e9bb193),
+            )
+            .await;
+            assert!(
+                cancelled.is_err(),
+                "nothing answers, so the wait is cut short"
+            );
+        }
+        assert_eq!(
+            manager.route_waiters.lock().await.len(),
+            1,
+            "only the latest cancelled traceroute may still be registered"
+        );
         Ok(())
     }
 
