@@ -59,7 +59,7 @@ pub async fn handle_message(
             print_info("Receiving messages...");
 
             // Get packet receiver
-            let mut receiver = connection.take_packet_receiver()?;
+            let mut receiver = connection.subscribe_packets().await;
 
             // Use the core library function
             let messages = rmesh_core::message::receive_messages(
@@ -99,7 +99,7 @@ pub async fn handle_message(
             print_info("Monitoring messages... Press Ctrl+C to stop");
 
             // Get packet receiver
-            let mut receiver = connection.take_packet_receiver()?;
+            let mut receiver = connection.subscribe_packets().await;
 
             // Use the core library function
             rmesh_core::message::monitor_messages(&mut receiver, from, |msg| {

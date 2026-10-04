@@ -141,53 +141,15 @@ pub async fn handle_mesh(
         MeshCommands::Traceroute { dest } => {
             print_info(&format!("Performing traceroute to node {dest:08x}..."));
 
-            // Perform traceroute
-            let hops = rmesh_core::mesh::traceroute(connection, dest).await?;
-
-            if hops.is_empty() {
-                println!(
-                    "{msg}",
-                    msg = "No route found or traceroute not yet fully implemented".yellow()
-                );
-                return Ok(());
-            }
+            let route = rmesh_core::mesh::traceroute(connection, dest).await?;
 
             match format {
-                OutputFormat::Json => print_output(&hops, format),
+                OutputFormat::Json => print_output(&route, format),
                 OutputFormat::Table => {
-                    println!(
-                        "\n{title}",
-                        title = format!("Traceroute to {dest:08x}:").bold().green()
-                    );
-
-                    let mut table = create_table();
-                    table.set_header(vec![
-                        Cell::new("Hop"),
-                        Cell::new("Node ID"),
-                        Cell::new("Name"),
-                        Cell::new("SNR"),
-                        Cell::new("RSSI"),
-                    ]);
-
-                    for hop in hops {
-                        table.add_row(vec![
-                            Cell::new(hop.hop_number),
-                            Cell::new(format!("{node_id:08x}", node_id = hop.node_id)),
-                            Cell::new(&hop.node_name),
-                            Cell::new(
-                                hop.snr
-                                    .map(|s| format!("{s:.1} dB"))
-                                    .unwrap_or_else(|| "N/A".to_string()),
-                            ),
-                            Cell::new(
-                                hop.rssi
-                                    .map(|r| format!("{r} dBm"))
-                                    .unwrap_or_else(|| "N/A".to_string()),
-                            ),
-                        ]);
+                    print_route(&format!("Route towards {dest:08x}:"), &route.towards);
+                    if let Some(back) = &route.back {
+                        print_route("Route back to us:", back);
                     }
-
-                    println!("{table}");
                 }
             }
         }
@@ -294,4 +256,29 @@ pub async fn handle_mesh(
     }
 
     Ok(())
+}
+
+fn print_route(title: &str, hops: &[rmesh_core::mesh::RouteHop]) {
+    println!("\n{title}", title = title.bold().green());
+
+    let mut table = create_table();
+    table.set_header(vec![
+        Cell::new("Hop"),
+        Cell::new("Node ID"),
+        Cell::new("Name"),
+        Cell::new("SNR"),
+    ]);
+    for hop in hops {
+        table.add_row(vec![
+            Cell::new(hop.hop_number),
+            Cell::new(format!("{node_id:08x}", node_id = hop.node_id)),
+            Cell::new(&hop.node_name),
+            Cell::new(
+                hop.snr
+                    .map(|s| format!("{s:.2} dB"))
+                    .unwrap_or_else(|| "-".to_string()),
+            ),
+        ]);
+    }
+    println!("{table}");
 }

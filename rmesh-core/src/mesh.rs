@@ -39,10 +39,10 @@ pub struct MeshEdge {
 /// Traceroute result
 #[derive(Debug, Clone, Serialize)]
 pub struct TracerouteResult {
-    pub destination: String,
-    pub hops: Vec<RouteHop>,
-    pub total_time_ms: u64,
-    pub success: bool,
+    /// From us to the destination, both ends included.
+    pub towards: Vec<RouteHop>,
+    /// From the destination back to us, when the reply recorded the way back.
+    pub back: Option<Vec<RouteHop>>,
 }
 
 /// Single hop in a traceroute
@@ -51,8 +51,9 @@ pub struct RouteHop {
     pub node_id: u32,
     pub node_name: String,
     pub hop_number: u32,
+    /// How well this node heard the previous one; None for the first node, or when the
+    /// hop did not record it.
     pub snr: Option<f32>,
-    pub rssi: Option<i32>,
 }
 
 /// Get the current mesh network topology
@@ -117,23 +118,8 @@ pub async fn get_topology(connection: &ConnectionManager) -> Result<serde_json::
 pub async fn traceroute(
     connection: &mut ConnectionManager,
     destination: u32,
-) -> Result<Vec<RouteHop>> {
-    // Use the ConnectionManager's traceroute method which handles response waiting
-    let hops = connection.send_traceroute(destination, 10).await?;
-
-    if hops.is_empty() {
-        debug!(
-            "No route found to destination {dest:08x}",
-            dest = destination
-        );
-    } else {
-        debug!(
-            "Found route to {destination:08x} with {hops} hops",
-            hops = hops.len()
-        );
-    }
-
-    Ok(hops)
+) -> Result<TracerouteResult> {
+    connection.send_traceroute(destination).await
 }
 
 /// List neighboring nodes (direct connections)

@@ -567,7 +567,6 @@ mod mesh_tests {
             node_name: "Hop Node".to_string(),
             hop_number: 1,
             snr: Some(5.5),
-            rssi: Some(-70),
         };
 
         assert_eq!(hop.node_id, 0x12345678);
