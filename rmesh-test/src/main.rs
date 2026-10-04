@@ -146,11 +146,17 @@ async fn main() -> Result<()> {
     .await?;
 
     // Run tests
-    let report = if let Some(test_list) = args.tests {
-        runner.run_specific_tests(test_list).await?
+    let result = if let Some(test_list) = args.tests {
+        runner.run_specific_tests(test_list).await
     } else {
-        runner.run_all_tests().await?
+        runner.run_all_tests().await
     };
+
+    // Until the radio hears a disconnect, its firmware keeps Bluetooth off.
+    if let Err(e) = runner.disconnect().await {
+        tracing::debug!("Failed to disconnect cleanly: {e}");
+    }
+    let report = result?;
 
     // Output results
     match args.format {

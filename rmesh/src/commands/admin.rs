@@ -6,7 +6,7 @@ use colored::*;
 use rmesh_core::{ConnectionManager, device};
 
 pub async fn handle_admin(
-    mut connection: ConnectionManager,
+    connection: &mut ConnectionManager,
     subcommand: AdminCommands,
     _format: OutputFormat,
 ) -> Result<()> {
@@ -18,7 +18,7 @@ pub async fn handle_admin(
             }
 
             print_warning("Sending reboot command to device...");
-            device::reboot_device(&mut connection, Some(5)).await?;
+            device::reboot_device(connection, Some(5)).await?;
             print_success("Reboot command sent. Device will restart in 5 seconds.");
         }
 
@@ -34,7 +34,7 @@ pub async fn handle_admin(
             }
 
             print_warning("Sending factory reset command...");
-            device::factory_reset_device(&mut connection).await?;
+            device::factory_reset_device(connection).await?;
             print_success("Factory reset command sent. Device will reset to defaults.");
         }
 
@@ -45,7 +45,7 @@ pub async fn handle_admin(
             }
 
             print_warning("Sending shutdown command to device...");
-            device::shutdown_device(&mut connection, Some(5)).await?;
+            device::shutdown_device(connection, Some(5)).await?;
             print_success("Shutdown command sent. Device will power off in 5 seconds.");
         }
     }

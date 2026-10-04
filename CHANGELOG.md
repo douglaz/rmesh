@@ -68,3 +68,8 @@
 - `connect()` waited a fixed 500 ms before reading device state instead of waiting for the
   configuration dump to finish, and issued seven admin requests the radio always rejected,
   costing ~1.7 s per connection.
+- Every `rmesh` and `rmesh-test` run over serial left the radio's Bluetooth off for 15
+  minutes. The firmware disables Bluetooth while a serial client is attached and turns it
+  back on only when the client sends a disconnect, which `rmesh` never did. Both now send one
+  when they finish or fail; `rmesh` also does when stopped with Ctrl+C, and still exits 130
+  then. An `rmesh-test` run stopped with Ctrl+C still leaves Bluetooth off.

@@ -60,6 +60,10 @@ impl TestRunner {
         })
     }
 
+    pub async fn disconnect(&mut self) -> Result<()> {
+        self.connection.disconnect().await
+    }
+
     pub async fn run_all_tests(&mut self) -> Result<TestReport> {
         let start_time = Instant::now();
 
