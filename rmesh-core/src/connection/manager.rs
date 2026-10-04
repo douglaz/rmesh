@@ -367,7 +367,8 @@ impl ConnectionManager {
     }
 
     /// A stream of every packet received from now on, alongside the manager's own
-    /// processing. It closes on disconnect.
+    /// processing. It closes on disconnect. Drain it or drop it: it is unbounded, like the
+    /// radio stream it copies, so packets left unread accumulate.
     pub async fn subscribe_packets(&self) -> PacketReceiver {
         let (subscriber, receiver) = mpsc::unbounded_channel();
         self.packet_subscribers.lock().await.push(subscriber);
@@ -393,22 +394,25 @@ impl ConnectionManager {
         let (tx, rx) = oneshot::channel();
         self.route_waiters.lock().await.insert(packet_id, tx);
 
-        let api = self.get_api()?;
-        api.send_to_radio_packet(Some(
-            meshtastic::protobufs::to_radio::PayloadVariant::Packet(traceroute_packet(
-                destination,
-                packet_id,
-                hop_limit,
-            )),
-        ))
-        .await?;
-        debug!("Sent traceroute to {destination:08x} as packet {packet_id}");
-
         // The reference client allows 20 s per hop.
         let wait = Duration::from_secs(20 * u64::from(hop_limit.max(1)));
-        let reply = tokio::time::timeout(wait, rx).await;
+        let reply = async {
+            self.get_api()?
+                .send_to_radio_packet(Some(
+                    meshtastic::protobufs::to_radio::PayloadVariant::Packet(traceroute_packet(
+                        destination,
+                        packet_id,
+                        hop_limit,
+                    )),
+                ))
+                .await?;
+            debug!("Sent traceroute to {destination:08x} as packet {packet_id}");
+            anyhow::Ok(tokio::time::timeout(wait, rx).await)
+        }
+        .await;
+        // Also when sending failed, or the entry would outlive the request.
         self.route_waiters.lock().await.remove(&packet_id);
-        match reply {
+        match reply? {
             Ok(Ok(Ok(route))) => Ok(route),
             Ok(Ok(Err(reason))) => bail!("Traceroute to {destination:08x} failed: {reason}"),
             Ok(Err(_)) => bail!("Traceroute to {destination:08x} was abandoned"),
@@ -1704,6 +1708,15 @@ mod tests {
         )
         .await?;
         assert_eq!(outcome(rx).await?.err().as_deref(), Some("NO_RESPONSE"));
+        Ok(())
+    }
+
+    /// A traceroute that cannot even be sent must not leave its waiter behind.
+    #[tokio::test]
+    async fn a_failed_traceroute_send_leaves_no_waiter() -> Result<()> {
+        let mut manager = ConnectionManager::new(None, None, Duration::from_secs(1)).await?;
+        assert!(manager.send_traceroute(0x7e9bb193).await.is_err());
+        assert!(manager.route_waiters.lock().await.is_empty());
         Ok(())
     }
 
