@@ -7,7 +7,7 @@ use meshtastic::utils;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{Mutex, oneshot};
+use tokio::sync::{Mutex, mpsc, oneshot};
 use tokio::task::JoinHandle;
 use tracing::{debug, info, warn};
 
@@ -44,16 +44,25 @@ impl PacketRouter<(), std::io::Error> for NoOpRouter {
     }
 }
 
+/// Pending traceroutes by request packet id: the route, or the routing error that ended it.
+type RouteWaiters = Arc<
+    Mutex<
+        HashMap<u32, oneshot::Sender<std::result::Result<crate::mesh::TracerouteResult, String>>>,
+    >,
+>;
+
 pub struct ConnectionManager {
     port: Option<String>,
     ble: Option<String>,
     timeout: Duration,
     api: Option<ConnectedStreamApi<Configured>>,
-    packet_receiver: Option<PacketReceiver>,
+    /// Every packet the processor sees is also copied to these, for commands that watch
+    /// the stream (`message monitor`, `position track`).
+    packet_subscribers: Arc<Mutex<Vec<mpsc::UnboundedSender<meshtastic::protobufs::FromRadio>>>>,
     device_state: Arc<Mutex<DeviceState>>,
     packet_processor: Option<JoinHandle<()>>,
     ack_waiters: Arc<Mutex<HashMap<u32, oneshot::Sender<bool>>>>,
-    route_waiters: Arc<Mutex<HashMap<u32, oneshot::Sender<Vec<crate::mesh::RouteHop>>>>>,
+    route_waiters: RouteWaiters,
     admin_session_passkey: Arc<Mutex<Option<Vec<u8>>>>,
 }
 
@@ -64,7 +73,7 @@ impl ConnectionManager {
             ble,
             timeout,
             api: None,
-            packet_receiver: None,
+            packet_subscribers: Arc::new(Mutex::new(Vec::new())),
             device_state: Arc::new(Mutex::new(DeviceState::new())),
             packet_processor: None,
             ack_waiters: Arc::new(Mutex::new(HashMap::new())),
@@ -225,12 +234,20 @@ impl ConnectionManager {
         let ack_waiters = self.ack_waiters.clone();
         let route_waiters = self.route_waiters.clone();
         let admin_session_passkey = self.admin_session_passkey.clone();
+        let packet_subscribers = self.packet_subscribers.clone();
 
         // Spawn a background task to process packets
         let handle = tokio::spawn(async move {
             info!("Starting packet processing loop");
 
             while let Some(packet) = receiver.recv().await {
+                // Before processing, which consumes the packet and can fail. A subscriber
+                // whose receiver is gone is dropped here.
+                packet_subscribers
+                    .lock()
+                    .await
+                    .retain(|subscriber| subscriber.send(packet.clone()).is_ok());
+
                 if let Err(e) = process_from_radio_packet(
                     packet,
                     device_state.clone(),
@@ -244,6 +261,9 @@ impl ConnectionManager {
                 }
             }
 
+            // The radio is gone (unplugged, or the link dropped): end every watcher too, or
+            // `message monitor` would wait forever on a stream nothing feeds.
+            packet_subscribers.lock().await.clear();
             info!("Packet processing loop ended");
         });
 
@@ -300,6 +320,8 @@ impl ConnectionManager {
         if let Some(processor) = self.packet_processor.take() {
             processor.abort();
         }
+        // Close every subscriber's stream, so a watcher ends instead of waiting forever.
+        self.packet_subscribers.lock().await.clear();
 
         if let Some(mut api) = self.api.take() {
             // The firmware turns Bluetooth off while a serial client is attached and only turns
@@ -344,98 +366,53 @@ impl ConnectionManager {
         self.device_state.clone()
     }
 
-    pub fn take_packet_receiver(&mut self) -> Result<PacketReceiver> {
-        self.packet_receiver
-            .take()
-            .context("Packet receiver already taken or not connected")
+    /// A stream of every packet received from now on, alongside the manager's own
+    /// processing. It closes on disconnect.
+    pub async fn subscribe_packets(&self) -> PacketReceiver {
+        let (subscriber, receiver) = mpsc::unbounded_channel();
+        self.packet_subscribers.lock().await.push(subscriber);
+        receiver
     }
 
     pub async fn send_traceroute(
         &mut self,
         destination: u32,
-        timeout_secs: u64,
-    ) -> Result<Vec<crate::mesh::RouteHop>> {
-        // Generate a unique request ID for tracking
-        let request_id = rand::random::<u32>();
+    ) -> Result<crate::mesh::TracerouteResult> {
+        // The radio's own hop limit, as the reference client uses; 3 is the firmware default.
+        let hop_limit = self
+            .device_state
+            .lock()
+            .await
+            .lora_config
+            .as_ref()
+            .map_or(3, |lora| lora.hop_limit);
+        // Nonzero: the firmware assigns its own id to a packet sent with 0, and the reply
+        // would then name an id we never saw.
+        let packet_id = rand::random::<u32>().max(1);
 
-        // Create a oneshot channel for route response
         let (tx, rx) = oneshot::channel();
+        self.route_waiters.lock().await.insert(packet_id, tx);
 
-        // Register the route waiter
-        {
-            let mut waiters = self.route_waiters.lock().await;
-            waiters.insert(request_id, tx);
-        }
-
-        // Create the RouteDiscovery packet
-        let route_discovery = meshtastic::protobufs::RouteDiscovery {
-            route: Vec::new(),
-            route_back: Vec::new(),
-            snr_back: Vec::new(),
-            snr_towards: Vec::new(),
-        };
-
-        let routing_packet = meshtastic::protobufs::Routing {
-            variant: Some(meshtastic::protobufs::routing::Variant::RouteRequest(
-                route_discovery,
-            )),
-        };
-
-        let payload = routing_packet.encode_to_vec();
-
-        // Create mesh packet for traceroute
-        let mesh_packet = meshtastic::protobufs::MeshPacket {
-            payload_variant: Some(meshtastic::protobufs::mesh_packet::PayloadVariant::Decoded(
-                meshtastic::protobufs::Data {
-                    portnum: meshtastic::protobufs::PortNum::TracerouteApp as i32,
-                    payload,
-                    want_response: true,
-                    dest: 0,
-                    source: 0,
-                    request_id,
-                    reply_id: 0,
-                    emoji: 0,
-                    bitfield: Some(0),
-                },
-            )),
-            from: 0,
-            to: destination,
-            id: request_id,
-            rx_time: 0,
-            rx_snr: 0.0,
-            hop_limit: 7,
-            want_ack: false,
-            priority: meshtastic::protobufs::mesh_packet::Priority::Reliable as i32,
-            rx_rssi: 0,
-            via_mqtt: false,
-            hop_start: 7,
-            ..Default::default()
-        };
-
-        // Send the traceroute packet
         let api = self.get_api()?;
         api.send_to_radio_packet(Some(
-            meshtastic::protobufs::to_radio::PayloadVariant::Packet(mesh_packet),
+            meshtastic::protobufs::to_radio::PayloadVariant::Packet(traceroute_packet(
+                destination,
+                packet_id,
+                hop_limit,
+            )),
         ))
         .await?;
+        debug!("Sent traceroute to {destination:08x} as packet {packet_id}");
 
-        debug!("Sent traceroute to {destination:08x} with request ID {request_id}");
-
-        // Wait for route response with timeout
-        match tokio::time::timeout(Duration::from_secs(timeout_secs), rx).await {
-            Ok(Ok(hops)) => Ok(hops),
-            Ok(Err(_)) => {
-                // Channel was closed without receiving data
-                debug!("Traceroute channel closed for request {request_id}");
-                Ok(Vec::new())
-            }
-            Err(_) => {
-                // Timeout occurred, clean up the waiter
-                let mut waiters = self.route_waiters.lock().await;
-                waiters.remove(&request_id);
-                debug!("Traceroute timeout for request {request_id}");
-                Ok(Vec::new())
-            }
+        // The reference client allows 20 s per hop.
+        let wait = Duration::from_secs(20 * u64::from(hop_limit.max(1)));
+        let reply = tokio::time::timeout(wait, rx).await;
+        self.route_waiters.lock().await.remove(&packet_id);
+        match reply {
+            Ok(Ok(Ok(route))) => Ok(route),
+            Ok(Ok(Err(reason))) => bail!("Traceroute to {destination:08x} failed: {reason}"),
+            Ok(Err(_)) => bail!("Traceroute to {destination:08x} was abandoned"),
+            Err(_) => bail!("No traceroute reply from {destination:08x} within {wait:?}"),
         }
     }
 
@@ -608,7 +585,7 @@ async fn process_from_radio_packet(
     from_radio: meshtastic::protobufs::FromRadio,
     device_state: Arc<Mutex<DeviceState>>,
     ack_waiters: Arc<Mutex<HashMap<u32, oneshot::Sender<bool>>>>,
-    route_waiters: Arc<Mutex<HashMap<u32, oneshot::Sender<Vec<crate::mesh::RouteHop>>>>>,
+    route_waiters: RouteWaiters,
     admin_session_passkey: Arc<Mutex<Option<Vec<u8>>>>,
 ) -> Result<()> {
     let payload_variant = match from_radio.payload_variant {
@@ -719,6 +696,22 @@ async fn process_from_radio_packet(
             }
         }
 
+        meshtastic::protobufs::from_radio::PayloadVariant::ClientNotification(notification) => {
+            // The radio refuses some requests outright, such as a second traceroute within
+            // 30 s, and says why here instead of with a routing error.
+            let waiter = match notification.reply_id {
+                Some(id) => route_waiters.lock().await.remove(&id),
+                None => None,
+            };
+            match waiter {
+                Some(sender) => {
+                    // A dropped receiver means the caller already gave up.
+                    let _ = sender.send(Err(notification.message));
+                }
+                None => warn!("Radio: {message}", message = notification.message),
+            }
+        }
+
         variant => {
             // Other packet types not yet handled
             debug!("Unhandled FromRadio packet variant: {variant:?}");
@@ -732,7 +725,7 @@ async fn process_mesh_packet(
     mesh_packet: meshtastic::protobufs::MeshPacket,
     device_state: Arc<Mutex<DeviceState>>,
     ack_waiters: Arc<Mutex<HashMap<u32, oneshot::Sender<bool>>>>,
-    route_waiters: Arc<Mutex<HashMap<u32, oneshot::Sender<Vec<crate::mesh::RouteHop>>>>>,
+    route_waiters: RouteWaiters,
     admin_session_passkey: Arc<Mutex<Option<Vec<u8>>>>,
 ) -> Result<()> {
     let payload_variant = match mesh_packet.payload_variant {
@@ -938,77 +931,56 @@ async fn process_mesh_packet(
             }
         }
 
+        meshtastic::protobufs::PortNum::TracerouteApp => {
+            // A reply names our request's packet id; a request passing through does not.
+            let waiter = match packet_data.request_id {
+                0 => None,
+                id => route_waiters.lock().await.remove(&id),
+            };
+            if let Some(sender) = waiter {
+                let reply = match meshtastic::protobufs::RouteDiscovery::decode(
+                    packet_data.payload.as_slice(),
+                ) {
+                    Ok(discovery) => Ok(traceroute_result(
+                        &discovery,
+                        mesh_packet.to,
+                        mesh_packet.from,
+                        mesh_packet.hop_start,
+                        &device_state.lock().await.nodes,
+                    )),
+                    Err(e) => Err(format!("undecodable reply: {e}")),
+                };
+                if sender.send(reply).is_err() {
+                    debug!(
+                        "Traceroute reply {request_id} arrived after its caller gave up",
+                        request_id = packet_data.request_id
+                    );
+                }
+            }
+        }
+
         meshtastic::protobufs::PortNum::RoutingApp => {
-            // Handle routing packets (including ACKs and route replies)
+            // Handle routing packets (including ACKs)
             if let Ok(routing) =
                 meshtastic::protobufs::Routing::decode(packet_data.payload.as_slice())
                 && let Some(variant) = routing.variant
             {
                 match variant {
-                    meshtastic::protobufs::routing::Variant::RouteReply(route) => {
-                        debug!(
-                            "Received route reply with {hops} hops",
-                            hops = route.route.len()
-                        );
-
-                        // Check if this is a response to a traceroute request
-                        if packet_data.request_id != 0 {
-                            let mut waiters = route_waiters.lock().await;
-                            if let Some(sender) = waiters.remove(&packet_data.request_id) {
-                                // Convert route to RouteHop structure
-                                let mut hops = Vec::new();
-                                for (idx, node_num) in route.route.iter().enumerate() {
-                                    // Look up node info from state
-                                    let state = device_state.lock().await;
-                                    let node_name = state
-                                        .nodes
-                                        .get(node_num)
-                                        .map(|n| n.user.long_name.clone())
-                                        .unwrap_or_else(|| {
-                                            format!("Unknown ({num:08x})", num = node_num)
-                                        });
-
-                                    hops.push(crate::mesh::RouteHop {
-                                        node_id: *node_num,
-                                        node_name,
-                                        hop_number: idx as u32,
-                                        snr: None,  // Route replies don't include SNR
-                                        rssi: None, // Route replies don't include RSSI
-                                    });
-                                }
-
-                                if sender.send(hops).is_err() {
-                                    debug!(
-                                        "Route reply receiver dropped for request {request_id}",
-                                        request_id = packet_data.request_id
-                                    );
-                                } else {
-                                    debug!(
-                                        "Sent route reply for request {request_id}",
-                                        request_id = packet_data.request_id
-                                    );
-                                }
-                            }
-                        }
-                    }
                     meshtastic::protobufs::routing::Variant::ErrorReason(reason) => {
                         debug!("Routing error: {reason:?}");
-                        // If this is an error for a traceroute request, send empty result
-                        if packet_data.request_id != 0 {
-                            let mut waiters = route_waiters.lock().await;
-                            if let Some(sender) = waiters.remove(&packet_data.request_id) {
-                                if sender.send(Vec::new()).is_err() {
-                                    debug!(
-                                        "Route error receiver dropped for request {request_id}",
-                                        request_id = packet_data.request_id
-                                    );
-                                } else {
-                                    debug!(
-                                        "Route request {request_id} failed: {reason:?}",
-                                        request_id = packet_data.request_id
-                                    );
-                                }
-                            }
+                        // NONE is an acknowledgement, not a failure: the traceroute reply may
+                        // still be on its way. Any other reason ends that wait.
+                        let failed = reason != meshtastic::protobufs::routing::Error::None as i32;
+                        let waiter = match packet_data.request_id {
+                            id if failed && id != 0 => route_waiters.lock().await.remove(&id),
+                            _ => None,
+                        };
+                        if let Some(sender) = waiter {
+                            let reason = meshtastic::protobufs::routing::Error::try_from(reason)
+                                .map(|e| e.as_str_name().to_string())
+                                .unwrap_or_else(|_| format!("routing error {reason}"));
+                            // A dropped receiver means the caller already gave up.
+                            let _ = sender.send(Err(reason));
                         }
                     }
                     variant => {
@@ -1217,6 +1189,77 @@ async fn process_config_response(
     Ok(())
 }
 
+/// The traceroute request the reference client sends: an empty RouteDiscovery on the
+/// traceroute port, asking for a reply. `request_id` must stay 0 — the firmware reads a
+/// nonzero one as "this is a reply" and does not answer.
+fn traceroute_packet(
+    destination: u32,
+    id: u32,
+    hop_limit: u32,
+) -> meshtastic::protobufs::MeshPacket {
+    meshtastic::protobufs::MeshPacket {
+        to: destination,
+        id,
+        hop_limit,
+        priority: meshtastic::protobufs::mesh_packet::Priority::Reliable as i32,
+        payload_variant: Some(meshtastic::protobufs::mesh_packet::PayloadVariant::Decoded(
+            meshtastic::protobufs::Data {
+                portnum: meshtastic::protobufs::PortNum::TracerouteApp as i32,
+                payload: meshtastic::protobufs::RouteDiscovery::default().encode_to_vec(),
+                want_response: true,
+                ..Default::default()
+            },
+        )),
+        ..Default::default()
+    }
+}
+
+/// Both paths of a traceroute reply sent by `dest` to `us`. The firmware lists only the
+/// hops in between, records each SNR in quarter-dB with `i8::MIN` for "unknown", and
+/// lists a hop that did not record itself as the broadcast address.
+fn traceroute_result(
+    reply: &meshtastic::protobufs::RouteDiscovery,
+    us: u32,
+    dest: u32,
+    hop_start: u32,
+    nodes: &HashMap<u32, NodeInfo>,
+) -> crate::mesh::TracerouteResult {
+    let path = |from: u32, via: &[u32], to: u32, snrs: &[i32]| {
+        // One SNR per node after the first, or the list cannot be lined up with the hops.
+        let snrs = if snrs.len() == via.len() + 1 {
+            snrs
+        } else {
+            &[]
+        };
+        std::iter::once(from)
+            .chain(via.iter().copied())
+            .chain(std::iter::once(to))
+            .enumerate()
+            .map(|(hop, node_id)| crate::mesh::RouteHop {
+                node_id,
+                node_name: nodes
+                    .get(&node_id)
+                    .map(|n| n.user.long_name.clone())
+                    .unwrap_or_else(|| "Unknown".to_string()),
+                hop_number: hop as u32,
+                snr: hop
+                    .checked_sub(1)
+                    .and_then(|i| snrs.get(i))
+                    .filter(|&&snr| snr != i32::from(i8::MIN))
+                    .map(|&snr| snr as f32 / 4.0),
+            })
+            .collect::<Vec<_>>()
+    };
+    crate::mesh::TracerouteResult {
+        towards: path(us, &reply.route, dest, &reply.snr_towards),
+        // Recorded only when the reply carries an SNR for every hop back, ours included, and
+        // a hop_start: without one the firmware cannot fill in hops that did not record
+        // themselves, so the list may be silently short. The reference client checks both.
+        back: (hop_start > 0 && reply.snr_back.len() == reply.route_back.len() + 1)
+            .then(|| path(dest, &reply.route_back, us, &reply.snr_back)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1355,5 +1398,346 @@ mod tests {
             state.lock().await.config_complete,
             "the requested ConfigCompleteId must end the wait"
         );
+    }
+
+    /// The processor owns the radio's packet stream, so watchers (`message monitor`,
+    /// `position track`) only see packets if it hands them a copy — without taking them
+    /// away from its own processing.
+    #[tokio::test]
+    async fn subscribers_see_packets_the_processor_also_handles() -> Result<()> {
+        let mut manager = ConnectionManager::new(None, None, Duration::from_secs(1)).await?;
+        let (radio, packets) = mpsc::unbounded_channel();
+        manager.start_packet_processing(packets).await;
+        let mut watcher = manager.subscribe_packets().await;
+
+        radio.send(meshtastic::protobufs::FromRadio {
+            id: 0,
+            payload_variant: Some(meshtastic::protobufs::from_radio::PayloadVariant::Metadata(
+                meshtastic::protobufs::DeviceMetadata {
+                    firmware_version: "2.7.26.54e0d8d".to_string(),
+                    ..Default::default()
+                },
+            )),
+        })?;
+
+        let seen = tokio::time::timeout(Duration::from_secs(5), watcher.recv())
+            .await
+            .context("the watcher must receive the packet")?;
+        assert!(seen.is_some());
+        let state = manager.get_device_state_ref();
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while state.lock().await.metadata.is_none() {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .context("the processor must still handle the packet")?;
+
+        manager.disconnect().await?;
+        let closed = tokio::time::timeout(Duration::from_secs(5), watcher.recv()).await;
+        assert!(
+            matches!(closed, Ok(None)),
+            "disconnect must close the watcher's stream"
+        );
+        Ok(())
+    }
+
+    /// A radio that goes away (unplugged, link dropped) ends the processor; its watchers
+    /// must end with it, or `message monitor` waits forever on a stream nothing feeds.
+    #[tokio::test]
+    async fn a_dead_radio_closes_watchers() -> Result<()> {
+        let mut manager = ConnectionManager::new(None, None, Duration::from_secs(1)).await?;
+        let (radio, packets) = mpsc::unbounded_channel::<meshtastic::protobufs::FromRadio>();
+        manager.start_packet_processing(packets).await;
+        let mut watcher = manager.subscribe_packets().await;
+
+        drop(radio);
+
+        let closed = tokio::time::timeout(Duration::from_secs(5), watcher.recv()).await;
+        assert!(
+            matches!(closed, Ok(None)),
+            "the watcher's stream must close with the radio's"
+        );
+        Ok(())
+    }
+
+    /// What the reference client sends. A nonzero `request_id` makes the firmware treat the
+    /// request as a reply and never answer, which is how rmesh's traceroute used to fail.
+    #[test]
+    fn traceroute_request_matches_the_reference_client() -> Result<()> {
+        let packet = traceroute_packet(0x7e9bb193, 42, 3);
+        assert_eq!(
+            (packet.to, packet.id, packet.hop_limit),
+            (0x7e9bb193, 42, 3)
+        );
+        assert_eq!(packet.hop_start, 0, "the firmware sets hop_start itself");
+        let Some(meshtastic::protobufs::mesh_packet::PayloadVariant::Decoded(data)) =
+            packet.payload_variant
+        else {
+            bail!("the request must be decoded");
+        };
+        assert_eq!(
+            data.portnum(),
+            meshtastic::protobufs::PortNum::TracerouteApp
+        );
+        assert!(data.want_response);
+        assert_eq!(data.request_id, 0);
+        assert!(
+            data.payload.is_empty(),
+            "an empty RouteDiscovery, not one wrapped in Routing: {payload:02x?}",
+            payload = data.payload
+        );
+        Ok(())
+    }
+
+    fn mesh_packet(
+        from: u32,
+        hop_start: u32,
+        portnum: meshtastic::protobufs::PortNum,
+        request_id: u32,
+        payload: Vec<u8>,
+    ) -> meshtastic::protobufs::FromRadio {
+        meshtastic::protobufs::FromRadio {
+            id: 0,
+            payload_variant: Some(meshtastic::protobufs::from_radio::PayloadVariant::Packet(
+                meshtastic::protobufs::MeshPacket {
+                    from,
+                    to: 0x5c15c784,
+                    hop_start,
+                    payload_variant: Some(
+                        meshtastic::protobufs::mesh_packet::PayloadVariant::Decoded(
+                            meshtastic::protobufs::Data {
+                                portnum: portnum as i32,
+                                payload,
+                                request_id,
+                                ..Default::default()
+                            },
+                        ),
+                    ),
+                    ..Default::default()
+                },
+            )),
+        }
+    }
+
+    fn routing_error(
+        request_id: u32,
+        error: meshtastic::protobufs::routing::Error,
+    ) -> meshtastic::protobufs::FromRadio {
+        mesh_packet(
+            0x5c15c784,
+            0,
+            meshtastic::protobufs::PortNum::RoutingApp,
+            request_id,
+            meshtastic::protobufs::Routing {
+                variant: Some(meshtastic::protobufs::routing::Variant::ErrorReason(
+                    error as i32,
+                )),
+            }
+            .encode_to_vec(),
+        )
+    }
+
+    type RouteOutcome = std::result::Result<crate::mesh::TracerouteResult, String>;
+
+    async fn route_waiter(
+        route_waiters: &RouteWaiters,
+        id: u32,
+    ) -> oneshot::Receiver<RouteOutcome> {
+        let (tx, rx) = oneshot::channel();
+        route_waiters.lock().await.insert(id, tx);
+        rx
+    }
+
+    async fn outcome(rx: oneshot::Receiver<RouteOutcome>) -> Result<RouteOutcome> {
+        Ok(tokio::time::timeout(Duration::from_secs(5), rx)
+            .await
+            .context("the waiter must resolve")??)
+    }
+
+    async fn feed_with_route_waiters(
+        state: &Arc<Mutex<DeviceState>>,
+        route_waiters: &RouteWaiters,
+        packet: meshtastic::protobufs::FromRadio,
+    ) -> Result<()> {
+        process_from_radio_packet(
+            packet,
+            state.clone(),
+            Arc::new(Mutex::new(HashMap::new())),
+            route_waiters.clone(),
+            Arc::new(Mutex::new(None)),
+        )
+        .await
+    }
+
+    /// The firmware answers on the traceroute port with a bare RouteDiscovery naming our
+    /// packet id. Each path runs endpoint to endpoint, SNR is in quarter-dB, and a hop that
+    /// did not record itself is listed as the broadcast address with SNR `i8::MIN`.
+    #[tokio::test]
+    async fn traceroute_reply_resolves_the_waiter_with_both_paths() -> Result<()> {
+        let state = Arc::new(Mutex::new(DeviceState::new()));
+        state.lock().await.nodes.insert(
+            0xa0cce0c0,
+            NodeInfo {
+                id: "a0cce0c0".to_string(),
+                num: 0xa0cce0c0,
+                user: User {
+                    id: "!a0cce0c0".to_string(),
+                    long_name: "Relay".to_string(),
+                    short_name: "RL".to_string(),
+                    hw_model: None,
+                },
+                last_heard: None,
+                last_heard_iso: None,
+                snr: None,
+                rssi: None,
+            },
+        );
+        let route_waiters: RouteWaiters = Arc::new(Mutex::new(HashMap::new()));
+        let rx = route_waiter(&route_waiters, 42).await;
+
+        let reply = meshtastic::protobufs::RouteDiscovery {
+            route: vec![0xa0cce0c0, u32::MAX],
+            snr_towards: vec![24, i32::from(i8::MIN), 41],
+            route_back: vec![0xa0cce0c0],
+            snr_back: vec![10, 43],
+        };
+        feed_with_route_waiters(
+            &state,
+            &route_waiters,
+            mesh_packet(
+                0x7e9bb193,
+                3,
+                meshtastic::protobufs::PortNum::TracerouteApp,
+                42,
+                reply.encode_to_vec(),
+            ),
+        )
+        .await?;
+
+        let route = outcome(rx).await?.map_err(anyhow::Error::msg)?;
+        let summary = |hops: &[crate::mesh::RouteHop]| {
+            hops.iter()
+                .map(|h| (h.hop_number, h.node_id, h.node_name.clone(), h.snr))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            summary(&route.towards),
+            vec![
+                (0, 0x5c15c784, "Unknown".to_string(), None),
+                (1, 0xa0cce0c0, "Relay".to_string(), Some(6.0)),
+                (2, u32::MAX, "Unknown".to_string(), None),
+                (3, 0x7e9bb193, "Unknown".to_string(), Some(10.25)),
+            ]
+        );
+        assert_eq!(
+            summary(&route.back.context("the way back was recorded")?),
+            vec![
+                (0, 0x7e9bb193, "Unknown".to_string(), None),
+                (1, 0xa0cce0c0, "Relay".to_string(), Some(2.5)),
+                (2, 0x5c15c784, "Unknown".to_string(), Some(10.75)),
+            ]
+        );
+        Ok(())
+    }
+
+    /// A direct neighbour answers with no hops in between; both endpoints still make a path.
+    #[test]
+    fn a_direct_neighbour_is_a_two_node_route() -> Result<()> {
+        let reply = meshtastic::protobufs::RouteDiscovery {
+            snr_towards: vec![25],
+            snr_back: vec![39],
+            ..Default::default()
+        };
+        let route = traceroute_result(&reply, 0x5c15c784, 0x7e9bb193, 3, &HashMap::new());
+        let pairs = |hops: &[crate::mesh::RouteHop]| {
+            hops.iter().map(|h| (h.node_id, h.snr)).collect::<Vec<_>>()
+        };
+        assert_eq!(
+            pairs(&route.towards),
+            vec![(0x5c15c784, None), (0x7e9bb193, Some(6.25))]
+        );
+        assert_eq!(
+            pairs(&route.back.context("the way back was recorded")?),
+            vec![(0x7e9bb193, None), (0x5c15c784, Some(9.75))]
+        );
+        Ok(())
+    }
+
+    /// Without a hop_start the firmware cannot fill in hops that did not record themselves,
+    /// so the way back may be silently short; like the reference client, leave it out.
+    #[test]
+    fn no_hop_start_means_no_way_back() -> Result<()> {
+        let reply = meshtastic::protobufs::RouteDiscovery {
+            snr_towards: vec![25],
+            snr_back: vec![39],
+            ..Default::default()
+        };
+        let route = traceroute_result(&reply, 0x5c15c784, 0x7e9bb193, 0, &HashMap::new());
+        assert!(route.back.is_none());
+        Ok(())
+    }
+
+    /// A routing ACK (error NONE) for the request is not a failure: the reply may still be
+    /// on its way. A real routing error ends the wait with its reason.
+    #[tokio::test]
+    async fn a_routing_ack_does_not_end_a_traceroute_but_an_error_does() -> Result<()> {
+        let state = Arc::new(Mutex::new(DeviceState::new()));
+        let route_waiters: RouteWaiters = Arc::new(Mutex::new(HashMap::new()));
+        let rx = route_waiter(&route_waiters, 42).await;
+
+        feed_with_route_waiters(
+            &state,
+            &route_waiters,
+            routing_error(42, meshtastic::protobufs::routing::Error::None),
+        )
+        .await?;
+        assert!(
+            route_waiters.lock().await.contains_key(&42),
+            "an ACK must leave the traceroute waiting"
+        );
+
+        feed_with_route_waiters(
+            &state,
+            &route_waiters,
+            routing_error(42, meshtastic::protobufs::routing::Error::NoResponse),
+        )
+        .await?;
+        assert_eq!(outcome(rx).await?.err().as_deref(), Some("NO_RESPONSE"));
+        Ok(())
+    }
+
+    /// The radio refuses a second traceroute within 30 s with a ClientNotification naming
+    /// the request, not a routing error. That must end the wait with the radio's reason,
+    /// not a timeout that blames the destination.
+    #[tokio::test]
+    async fn a_refused_traceroute_ends_with_the_radios_reason() -> Result<()> {
+        let state = Arc::new(Mutex::new(DeviceState::new()));
+        let route_waiters: RouteWaiters = Arc::new(Mutex::new(HashMap::new()));
+        let rx = route_waiter(&route_waiters, 42).await;
+
+        feed_with_route_waiters(
+            &state,
+            &route_waiters,
+            meshtastic::protobufs::FromRadio {
+                id: 0,
+                payload_variant: Some(
+                    meshtastic::protobufs::from_radio::PayloadVariant::ClientNotification(
+                        meshtastic::protobufs::ClientNotification {
+                            reply_id: Some(42),
+                            message: "TraceRoute can only be sent once every 30 seconds"
+                                .to_string(),
+                            ..Default::default()
+                        },
+                    ),
+                ),
+            },
+        )
+        .await?;
+        assert_eq!(
+            outcome(rx).await?.err().as_deref(),
+            Some("TraceRoute can only be sent once every 30 seconds")
+        );
+        Ok(())
     }
 }

@@ -67,7 +67,7 @@ pub async fn handle_position(
             );
 
             // Get packet receiver
-            let mut receiver = connection.take_packet_receiver()?;
+            let mut receiver = connection.subscribe_packets().await;
 
             // Use the core library function
             let positions = rmesh_core::position::track_positions(
