@@ -82,7 +82,7 @@
   reads as "this is a reply", so the destination never responded. The handler also
   listened only on the routing port, while replies come on the traceroute port. It now
   sends what the reference client sends and prints both directions, endpoints included,
-  with the SNR each hop heard. No reply within 20 s per hop is now an error instead of "No
+  with the SNR each hop heard. No reply within 20 s per hop, the destination's included, is now an error instead of "No
   route found". A routing error such as `NO_RESPONSE`, or the radio refusing the request
   (as it does for a second traceroute within 30 s on one connection), ends the wait with
   that reason. If the radio goes away, a pending traceroute (or `message send --ack`) ends

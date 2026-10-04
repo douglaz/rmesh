@@ -407,8 +407,7 @@ impl ConnectionManager {
             waiters.insert(packet_id, tx);
         }
 
-        // The reference client allows 20 s per hop.
-        let wait = Duration::from_secs(20 * u64::from(hop_limit.max(1)));
+        let wait = traceroute_wait(hop_limit);
         let reply = async {
             self.get_api()?
                 .send_to_radio_packet(Some(
@@ -1208,6 +1207,12 @@ async fn process_config_response(
     Ok(())
 }
 
+/// How long to wait for a traceroute reply: the reference client allows 20 s per hop,
+/// counting the destination's.
+fn traceroute_wait(hop_limit: u32) -> Duration {
+    Duration::from_secs(20 * (u64::from(hop_limit) + 1))
+}
+
 /// The traceroute request the reference client sends: an empty RouteDiscovery on the
 /// traceroute port, asking for a reply. `request_id` must stay 0 — the firmware reads a
 /// nonzero one as "this is a reply" and does not answer.
@@ -1503,6 +1508,15 @@ mod tests {
             matches!(ack_wait, Ok(Err(_))),
             "a pending ACK must end with the radio, not time out"
         );
+        Ok(())
+    }
+
+    /// The reference client budgets one 20 s slot per hop plus one for the destination; a
+    /// maximum-depth reply can take all of them.
+    #[test]
+    fn traceroute_wait_counts_the_destinations_hop() -> Result<()> {
+        assert_eq!(traceroute_wait(3), Duration::from_secs(80));
+        assert_eq!(traceroute_wait(0), Duration::from_secs(20));
         Ok(())
     }
 
