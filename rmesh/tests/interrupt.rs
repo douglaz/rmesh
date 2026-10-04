@@ -1,6 +1,6 @@
 #![cfg(unix)]
 
-use std::io::Read;
+use std::io::{ErrorKind, Read};
 use std::net::TcpListener;
 use std::process::{Command, Stdio};
 use std::time::Duration;
@@ -23,7 +23,24 @@ fn ctrl_c_releases_the_radio_and_exits_130() {
         .spawn()
         .expect("spawn rmesh");
 
-    let (mut stream, _) = radio.accept().expect("accept");
+    // Poll rather than block, so an rmesh that exits before connecting fails the test
+    // instead of hanging it.
+    radio.set_nonblocking(true).expect("nonblocking");
+    let (mut stream, _) = loop {
+        match radio.accept() {
+            Ok(connection) => break connection,
+            Err(e) if e.kind() == ErrorKind::WouldBlock => {
+                let exited = rmesh.try_wait().expect("try_wait");
+                assert!(
+                    exited.is_none(),
+                    "rmesh exited before connecting: {exited:?}"
+                );
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(e) => panic!("accept: {e}"),
+        }
+    };
+    stream.set_nonblocking(false).expect("blocking");
     stream
         .set_read_timeout(Some(Duration::from_secs(20)))
         .expect("read timeout");
