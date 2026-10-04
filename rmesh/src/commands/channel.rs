@@ -5,14 +5,14 @@ use anyhow::Result;
 use rmesh_core::ConnectionManager;
 
 pub async fn handle_channel(
-    mut connection: ConnectionManager,
+    connection: &mut ConnectionManager,
     subcommand: ChannelCommands,
     format: OutputFormat,
 ) -> Result<()> {
     match subcommand {
         ChannelCommands::List => {
             // List all channels
-            let channels = rmesh_core::channel::list_channels(&connection).await?;
+            let channels = rmesh_core::channel::list_channels(connection).await?;
 
             match format {
                 OutputFormat::Json => print_output(&channels, format),
@@ -48,7 +48,7 @@ pub async fn handle_channel(
             print_info(&format!("Adding channel '{name}'..."));
 
             // Add the channel
-            rmesh_core::channel::add_channel(&mut connection, &name, psk.as_deref()).await?;
+            rmesh_core::channel::add_channel(connection, &name, psk.as_deref()).await?;
 
             print_success(&format!("Channel '{name}' added successfully"));
 
@@ -56,7 +56,7 @@ pub async fn handle_channel(
             tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
             // List channels to show the new one
-            let channels = rmesh_core::channel::list_channels(&connection).await?;
+            let channels = rmesh_core::channel::list_channels(connection).await?;
             match format {
                 OutputFormat::Json => print_output(&channels, format),
                 OutputFormat::Table => {
@@ -77,7 +77,7 @@ pub async fn handle_channel(
             print_info(&format!("Deleting channel at index {index}..."));
 
             // Delete the channel
-            rmesh_core::channel::delete_channel(&mut connection, index).await?;
+            rmesh_core::channel::delete_channel(connection, index).await?;
 
             print_success(&format!("Channel at index {index} deleted"));
         }
@@ -98,13 +98,8 @@ pub async fn handle_channel(
             }
 
             // Set the channel configuration
-            rmesh_core::channel::set_channel(
-                &mut connection,
-                index,
-                name.as_deref(),
-                psk.as_deref(),
-            )
-            .await?;
+            rmesh_core::channel::set_channel(connection, index, name.as_deref(), psk.as_deref())
+                .await?;
 
             print_success(&format!("Channel {index} updated successfully"));
         }

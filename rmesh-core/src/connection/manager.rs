@@ -301,7 +301,20 @@ impl ConnectionManager {
             processor.abort();
         }
 
-        if let Some(api) = self.api.take() {
+        if let Some(mut api) = self.api.take() {
+            // The firmware turns Bluetooth off while a serial client is attached and only turns
+            // it back on when the client says it is done, or after 15 idle minutes.
+            if let Err(e) = api
+                .send_to_radio_packet(Some(
+                    meshtastic::protobufs::to_radio::PayloadVariant::Disconnect(true),
+                ))
+                .await
+            {
+                debug!("Failed to tell the radio we are disconnecting: {e}");
+            }
+            // A fixed grace period, because StreamApi::disconnect cancels the writer without
+            // draining its queue. Drain it there instead if 100 ms ever proves short.
+            tokio::time::sleep(Duration::from_millis(100)).await;
             api.disconnect().await?;
         }
 
@@ -1234,6 +1247,42 @@ mod tests {
         assert!(
             manager.packet_processor.is_none(),
             "the previous processor must be shut down before a new session starts"
+        );
+    }
+
+    /// disconnect() must put ToRadio{disconnect} on the wire before the stream closes,
+    /// or the firmware keeps Bluetooth off for 15 minutes after every serial session.
+    #[tokio::test]
+    async fn disconnect_tells_the_radio_before_closing() {
+        use tokio::io::AsyncReadExt;
+
+        let (client, mut radio) = tokio::io::duplex(4096);
+        let (_receiver, api) = StreamApi::new()
+            .connect(meshtastic::api::StreamHandle::from_stream(client))
+            .await;
+        let mut manager = ConnectionManager::new(None, None, Duration::from_secs(1))
+            .await
+            .expect("manager");
+        manager.api = Some(api.configure(1).await.expect("configure"));
+
+        manager.disconnect().await.expect("disconnect");
+
+        let mut written = Vec::new();
+        tokio::time::timeout(Duration::from_secs(5), radio.read_to_end(&mut written))
+            .await
+            .expect("stream closed")
+            .expect("read");
+        let payload = meshtastic::protobufs::ToRadio {
+            payload_variant: Some(meshtastic::protobufs::to_radio::PayloadVariant::Disconnect(
+                true,
+            )),
+        }
+        .encode_to_vec();
+        let mut frame = vec![0x94, 0xc3, 0, payload.len() as u8];
+        frame.extend(payload);
+        assert!(
+            written.ends_with(&frame),
+            "the last frame written must be the disconnect, got {written:02x?}"
         );
     }
 

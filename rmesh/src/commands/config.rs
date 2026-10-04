@@ -14,14 +14,14 @@ struct ConfigValue {
 }
 
 pub async fn handle_config(
-    mut connection: ConnectionManager,
+    connection: &mut ConnectionManager,
     subcommand: ConfigCommands,
     format: OutputFormat,
 ) -> Result<()> {
     match subcommand {
         ConfigCommands::Get { key } => {
             // Use the core library function
-            let value = rmesh_core::config::get_config_value(&mut connection, &key).await?;
+            let value = rmesh_core::config::get_config_value(connection, &key).await?;
 
             let config_value = ConfigValue {
                 key: key.clone(),
@@ -46,7 +46,7 @@ pub async fn handle_config(
 
         ConfigCommands::Set { key, value } => {
             // Use the core library function
-            rmesh_core::config::set_config_value(&mut connection, &key, &value).await?;
+            rmesh_core::config::set_config_value(connection, &key, &value).await?;
 
             print_success(&format!("Configuration '{key}' set to '{value}'"));
             println!(
@@ -57,7 +57,7 @@ pub async fn handle_config(
 
         ConfigCommands::List => {
             // Use the core library function
-            let config = rmesh_core::config::list_config(&mut connection).await?;
+            let config = rmesh_core::config::list_config(connection).await?;
 
             match format {
                 OutputFormat::Json => print_output(&config, format),

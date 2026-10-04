@@ -36,7 +36,7 @@ struct RadioInfo {
 }
 
 pub async fn handle_info(
-    mut connection: ConnectionManager,
+    connection: &mut ConnectionManager,
     subcommand: InfoCommands,
     format: OutputFormat,
 ) -> Result<()> {
@@ -122,7 +122,7 @@ pub async fn handle_info(
 
         InfoCommands::Nodes => {
             // Use the core library function
-            let nodes = rmesh_core::mesh::get_nodes(&connection).await?;
+            let nodes = rmesh_core::mesh::get_nodes(connection).await?;
 
             match format {
                 OutputFormat::Json => {
@@ -171,7 +171,7 @@ pub async fn handle_info(
 
         InfoCommands::Channels => {
             // Use the core library function
-            let channels = rmesh_core::channel::list_channels(&connection).await?;
+            let channels = rmesh_core::channel::list_channels(connection).await?;
 
             if channels.is_empty() {
                 println!("No channels configured");
@@ -207,7 +207,7 @@ pub async fn handle_info(
             // First, send telemetry request if requested
             if request {
                 eprintln!("Requesting telemetry from device...");
-                rmesh_core::telemetry::request_device_telemetry(&mut connection).await?;
+                rmesh_core::telemetry::request_device_telemetry(connection).await?;
             }
 
             // Then collect telemetry based on wait flag
@@ -218,7 +218,7 @@ pub async fn handle_info(
                 } else {
                     eprintln!("Waiting {wait_seconds} seconds for telemetry broadcasts...");
                 }
-                rmesh_core::telemetry::collect_telemetry(&mut connection, wait_seconds).await?
+                rmesh_core::telemetry::collect_telemetry(connection, wait_seconds).await?
             } else if request {
                 // Just requested telemetry, wait default 10 seconds for response
                 eprintln!("Waiting for telemetry response...");
@@ -342,7 +342,7 @@ pub async fn handle_info(
             // First, send position requests if requested
             if request_all {
                 eprintln!("Requesting positions from all nodes...");
-                rmesh_core::position::send_position_requests(&mut connection).await?;
+                rmesh_core::position::send_position_requests(connection).await?;
             }
 
             // Then collect positions based on wait flag
@@ -355,7 +355,7 @@ pub async fn handle_info(
                 } else {
                     eprintln!("Waiting {wait_seconds} seconds for position broadcasts...");
                 }
-                rmesh_core::position::collect_positions(&mut connection, wait_seconds).await?
+                rmesh_core::position::collect_positions(connection, wait_seconds).await?
             } else if request_all {
                 // Just requested positions, wait default 10 seconds for responses
                 eprintln!("Waiting for position responses...");
@@ -487,7 +487,7 @@ pub async fn handle_info(
 }
 
 pub async fn handle_telemetry(
-    _connection: ConnectionManager,
+    _connection: &mut ConnectionManager,
     telemetry_type: TelemetryType,
     _dest: Option<u32>,
     _format: OutputFormat,

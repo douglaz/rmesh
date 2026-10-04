@@ -7,14 +7,14 @@ use comfy_table::Cell;
 use rmesh_core::ConnectionManager;
 
 pub async fn handle_position(
-    mut connection: ConnectionManager,
+    connection: &mut ConnectionManager,
     subcommand: PositionCommands,
     format: OutputFormat,
 ) -> Result<()> {
     match subcommand {
         PositionCommands::Get { node } => {
             // Use the core library function
-            let position = rmesh_core::position::get_position(&connection, node).await?;
+            let position = rmesh_core::position::get_position(connection, node).await?;
 
             if let Some(pos) = position {
                 match format {
@@ -51,7 +51,7 @@ pub async fn handle_position(
 
         PositionCommands::Set { lat, lon, alt } => {
             // Use the core library function
-            rmesh_core::position::set_position(&mut connection, lat, lon, alt).await?;
+            rmesh_core::position::set_position(connection, lat, lon, alt).await?;
 
             print_success(&format!(
                 "Position set to: {lat:.6}, {lon:.6}{altitude}",
@@ -117,7 +117,7 @@ pub async fn handle_position(
 
             // Use the core library function
             let position =
-                rmesh_core::position::request_position(&mut connection, node, timeout).await?;
+                rmesh_core::position::request_position(connection, node, timeout).await?;
 
             if let Some(pos) = position {
                 match format {

@@ -15,7 +15,7 @@ struct SentMessage {
 }
 
 pub async fn handle_message(
-    mut connection: ConnectionManager,
+    connection: &mut ConnectionManager,
     subcommand: MessageCommands,
     format: OutputFormat,
 ) -> Result<()> {
@@ -27,8 +27,7 @@ pub async fn handle_message(
             ack,
         } => {
             // Use the core library function
-            rmesh_core::message::send_text_message(&mut connection, &text, dest, channel, ack)
-                .await?;
+            rmesh_core::message::send_text_message(connection, &text, dest, channel, ack).await?;
 
             let sent_msg = SentMessage {
                 text: text.clone(),

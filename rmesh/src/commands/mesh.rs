@@ -7,7 +7,7 @@ use comfy_table::Cell;
 use rmesh_core::ConnectionManager;
 
 pub async fn handle_mesh(
-    mut connection: ConnectionManager,
+    connection: &mut ConnectionManager,
     subcommand: MeshCommands,
     format: OutputFormat,
 ) -> Result<()> {
@@ -16,7 +16,7 @@ pub async fn handle_mesh(
             print_info("Analyzing mesh network topology...");
 
             // Get topology from core library
-            let topology = rmesh_core::mesh::get_topology(&connection).await?;
+            let topology = rmesh_core::mesh::get_topology(connection).await?;
 
             match format {
                 OutputFormat::Json => print_output(&topology, format),
@@ -142,7 +142,7 @@ pub async fn handle_mesh(
             print_info(&format!("Performing traceroute to node {dest:08x}..."));
 
             // Perform traceroute
-            let hops = rmesh_core::mesh::traceroute(&mut connection, dest).await?;
+            let hops = rmesh_core::mesh::traceroute(connection, dest).await?;
 
             if hops.is_empty() {
                 println!(
@@ -196,7 +196,7 @@ pub async fn handle_mesh(
             print_info("Finding direct mesh neighbors...");
 
             // Get neighbors
-            let neighbors = rmesh_core::mesh::get_neighbors(&connection).await?;
+            let neighbors = rmesh_core::mesh::get_neighbors(connection).await?;
 
             if neighbors.is_empty() {
                 println!("{message}", message = "No direct neighbors found".yellow());
@@ -264,7 +264,7 @@ pub async fn handle_mesh(
                     println!("{table}");
 
                     // Calculate and show network stats
-                    if let Ok(stats) = rmesh_core::mesh::get_network_stats(&connection).await {
+                    if let Ok(stats) = rmesh_core::mesh::get_network_stats(connection).await {
                         println!("\n{title}", title = "Network Statistics:".bold().cyan());
                         println!("  Total Nodes: {total}", total = stats.total_nodes);
                         println!("  Active Nodes: {active}", active = stats.active_nodes);
