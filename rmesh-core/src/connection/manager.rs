@@ -371,7 +371,11 @@ impl ConnectionManager {
     /// radio stream it copies, so packets left unread accumulate.
     pub async fn subscribe_packets(&self) -> PacketReceiver {
         let (subscriber, receiver) = mpsc::unbounded_channel();
-        self.packet_subscribers.lock().await.push(subscriber);
+        let mut subscribers = self.packet_subscribers.lock().await;
+        // Receivers dropped while the radio was quiet are otherwise only noticed when the
+        // next packet arrives.
+        subscribers.retain(|existing| !existing.is_closed());
+        subscribers.push(subscriber);
         receiver
     }
 
@@ -1449,6 +1453,18 @@ mod tests {
             matches!(closed, Ok(None)),
             "disconnect must close the watcher's stream"
         );
+        Ok(())
+    }
+
+    /// Subscribing and dropping the receiver while the radio is quiet must not pile up
+    /// closed subscribers until the next packet happens to arrive.
+    #[tokio::test]
+    async fn dropped_subscribers_do_not_pile_up() -> Result<()> {
+        let manager = ConnectionManager::new(None, None, Duration::from_secs(1)).await?;
+        for _ in 0..3 {
+            drop(manager.subscribe_packets().await);
+        }
+        assert_eq!(manager.packet_subscribers.lock().await.len(), 1);
         Ok(())
     }
 
